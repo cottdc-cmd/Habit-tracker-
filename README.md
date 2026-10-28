@@ -46,7 +46,9 @@ Do one step at a time. Each is short.
 1. Import this repo into Netlify. There's no build command; it just works.
 2. Add every value from `.env` under **Site configuration → Environment variables**.
 
-### 3. Oura 💍
+### 3. Oura 💍 (recommended)
+Oura's form also asks for a privacy policy and terms. Use `/privacy.html` and `/terms.html` on your site.
+
 1. At [cloud.ouraring.com/oauth/applications](https://cloud.ouraring.com/oauth/applications), create an app.
    Set the redirect URI to `https://YOUR-SITE.netlify.app/api/oura-callback`.
 2. Add `OURA_CLIENT_ID` and `OURA_CLIENT_SECRET` to Netlify, then redeploy.
@@ -56,7 +58,9 @@ Do one step at a time. Each is short.
 1. In Google Calendar, open **Settings → (your calendar) → Integrate calendar**.
 2. Copy the **Secret address in iCal format** into `GOOGLE_CALENDAR_ICS_URLS`. Separate several with commas.
 
-### 5. Apple Health ❤️
+### 5. Apple Health ❤️ (optional)
+Oura already picks up workouts and steps, so skip this unless you want automatic period logging or Apple Watch workouts.
+
 The easiest option is the **Health Auto Export** app (iOS, paid tier needed for automations):
 1. Create a **REST API** automation.
 2. URL: `https://YOUR-SITE.netlify.app/api/health`
