@@ -22,6 +22,7 @@ window.Demo = (() => {
       habit('h4', '🌙', 'Rested when my body asked', 'Rest', 0, 'rest_day', 1, false, null, null, 0),
       habit('h5', '📚', 'Reading', 'Grow', 3, 'calendar:reading', 1, false, null, null, 3),
       habit('h6', '✨', 'Something just for me', 'Joy', 2, 'manual', 1, false, null, null, 1),
+      habit('h7', '🥩', 'Protein goal', 'Fuel', 5, 'manual | prize_wheel', 2, false, null, null, 1),
     ],
     stats: { date: key(today), sleep_score: 82, readiness: 74, steps: 5230, exercise_minutes: 34 },
     level: { level: 4, xp: 680, into: 80, span: 400 },
@@ -36,6 +37,11 @@ window.Demo = (() => {
     cycle: {
       phase: 'luteal', day: 21, length: 29, learned: true, nextIn: 9, late: false, periodToday: false,
       marks: { follicular: 6, ovulatory: 14, luteal: 17 },
+    },
+    prize: {
+      habitId: 'h7', name: 'Protein goal', emoji: '🥩', streak: 2, cycleDay: 2, doneToday: false, unlocked: null,
+      next: { day: 3, size: 'S', budget: 30, daysAway: 1 },
+      tiers: [{ day: 1, size: 'XS', budget: 15 }, { day: 3, size: 'S', budget: 30 }, { day: 5, size: 'M', budget: 50 }, { day: 7, size: 'L', budget: 100 }],
     },
     lastSync: { at: new Date(Date.now() - 3 * 3600e3).toISOString(), wins: [], errors: [] },
   };
@@ -65,6 +71,7 @@ window.Demo = (() => {
           addXp(10);
           h.goalHit = h.goal > 0 && h.weekCount >= h.goal;
           if (h.goalHit && !wasHit) { h.streak++; addXp(25); }
+          if (h.id === 'h7') Object.assign(data.prize, { streak: 3, cycleDay: 3, doneToday: true, unlocked: { day: 3, size: 'S', budget: 30 }, next: { day: 5, size: 'M', budget: 50, daysAway: 2 } });
           data.recentWins.unshift({ habitId, emoji: h.emoji, name: h.name, date: data.today, source: 'Manual', detail: 'You did it' });
         }
         return { ok: true };

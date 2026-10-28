@@ -10,6 +10,7 @@
   --rest: #7b8cc4;
   --joy: #e2a93b;
   --grow: #6fa58a;
+  --fuel: #4f9fa6;
   --me: #c47bb0;
   --done-bg: #f0f7f2;
   --radius: 20px;
@@ -124,6 +125,23 @@ section { margin-top: 28px; }
 .small-btn { padding: 8px 14px; font-size: 14px; }
 .link-btn { background: none; border: 0; color: var(--muted); font: 500 14px Inter, system-ui, sans-serif; cursor: pointer; padding: 6px 0; }
 
+/* Prize wheel */
+.prize { padding: 16px 18px; margin-top: 16px; }
+.prize-head { display: flex; gap: 12px; align-items: center; }
+.prize-emoji {
+  flex: none; width: 44px; height: 44px; border-radius: 14px; font-size: 24px;
+  display: grid; place-items: center; background: color-mix(in srgb, var(--joy) 20%, transparent);
+}
+.steps { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; margin: 14px 0 10px; }
+.step {
+  height: 30px; border-radius: 10px; background: var(--line);
+  display: grid; place-items: center; font: 600 11px Inter, system-ui, sans-serif; color: var(--muted);
+  transition: background .4s;
+}
+.step.tier { box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--joy) 60%, transparent); }
+.step.on { background: linear-gradient(135deg, #f7c873, #e07a5f); color: #fff; }
+.prize-line { margin: 0; font-size: 15px; }
+
 /* Habit cards */
 .habits { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
 .habit {
@@ -141,6 +159,7 @@ section { margin-top: 28px; }
 .habit[data-area="Rest"] { --c: var(--rest); }
 .habit[data-area="Joy"] { --c: var(--joy); }
 .habit[data-area="Grow"] { --c: var(--grow); }
+.habit[data-area="Fuel"] { --c: var(--fuel); }
 .habit-top { display: flex; align-items: center; gap: 10px; }
 .habit-emoji {
   flex: none; width: 44px; height: 44px; border-radius: 14px; font-size: 24px;

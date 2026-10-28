@@ -79,3 +79,22 @@ test('weekly streaks forgive an unfinished current week', () => {
   assert.equal(s.showUpWeeks, 3);
   assert.equal(s.level.xp, 5 * 10 + 2 * 25);
 });
+
+test('prize wheel follows the Notion page rules', async () => {
+  const { prizeWheel } = await import('../netlify/lib/summary.mjs');
+  const habits = [{ id: 'p', name: 'Protein goal', emoji: '🥩', rule: 'manual | prize_wheel' }];
+  const run = (n, end) => Array.from({ length: n }, (_, i) => ({ habitId: 'p', date: weekStartFree(end, -i) }));
+  function weekStartFree(key, n) { const d = new Date(`${key}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); }
+
+  assert.equal(prizeWheel([], [], '2026-10-28'), null);
+  let p = prizeWheel(habits, run(1, '2026-10-28'), '2026-10-28');
+  assert.deepEqual([p.streak, p.cycleDay, p.unlocked.size], [1, 1, 'XS']);
+  p = prizeWheel(habits, run(2, '2026-10-27'), '2026-10-28'); // today not done yet
+  assert.deepEqual([p.streak, p.doneToday, p.unlocked, p.next.size, p.next.daysAway], [2, false, null, 'S', 1]);
+  p = prizeWheel(habits, run(5, '2026-10-28'), '2026-10-28');
+  assert.equal(p.unlocked.size, 'M');
+  p = prizeWheel(habits, run(8, '2026-10-28'), '2026-10-28'); // after the 7-day prize it starts over
+  assert.deepEqual([p.cycleDay, p.unlocked.size], [1, 'XS']);
+  p = prizeWheel(habits, run(4, '2026-10-28'), '2026-10-28');
+  assert.deepEqual([p.unlocked, p.next.size, p.next.daysAway], [null, 'M', 1]);
+});

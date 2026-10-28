@@ -26,7 +26,7 @@ async function makeDb(title, emoji, properties) {
 const habitsDb = await makeDb('Habits', '🌱', {
   Name: { title: {} },
   Emoji: text,
-  Area: select(['Move', 'Rest', 'Joy', 'Grow']),
+  Area: select(['Move', 'Rest', 'Joy', 'Grow', 'Fuel']),
   'Weekly goal': num,
   Rule: text,
   Order: num,
@@ -65,6 +65,7 @@ const starters = [
   ['🌙', 'Rested when my body asked', 'Rest', 0, 'rest_day'],
   ['📚', 'Reading', 'Grow', 3, 'calendar:reading'],
   ['✨', 'Something just for me', 'Joy', 2, 'manual'],
+  ['🥩', 'Protein goal', 'Fuel', 5, 'manual | prize_wheel'],
 ];
 for (const [i, [emoji, name, area, goal, rule]] of starters.entries()) {
   await createPage(habitsDb, {

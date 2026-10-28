@@ -90,6 +90,7 @@ function render() {
   $('nudge').textContent = nudge;
 
   renderCycle(s.cycle);
+  renderPrize(s.prize);
 
   // Habits
   const wrap = $('habits');
@@ -180,6 +181,32 @@ async function logPeriod(on) {
   } catch (e) {
     if (e.message !== 'auth') toast("Couldn't save that. Try again?");
   }
+}
+
+// Progress toward the next prize on the Notion prize wheel (days 1, 3, 5, 7).
+function renderPrize(p) {
+  const el = $('prize');
+  el.hidden = !p;
+  if (!p) return;
+  const tierAt = Object.fromEntries(p.tiers.map((t) => [t.day, t]));
+  const steps = Array.from({ length: 7 }, (_, i) => {
+    const day = i + 1;
+    const t = tierAt[day];
+    const cls = `step${day <= p.cycleDay ? ' on' : ''}${t ? ' tier' : ''}`;
+    return `<span class="${cls}">${t ? t.size : ''}</span>`;
+  }).join('');
+  let line;
+  if (p.unlocked) line = `<strong>🎁 Spin the wheel!</strong> Size ${p.unlocked.size}, up to $${p.unlocked.budget}. Ask Muse to spin.`;
+  else if (!p.doneToday) line = `Hit protein today and you're <strong>${p.next.daysAway} day${p.next.daysAway === 1 ? '' : 's'}</strong> from a size ${p.next.size} prize.`;
+  else line = `${p.next.daysAway} more day${p.next.daysAway === 1 ? '' : 's'} to a size ${p.next.size} prize ($${p.next.budget}).`;
+  el.innerHTML = `
+    <div class="prize-head">
+      <span class="prize-emoji">🎡</span>
+      <div><strong>Protein prize wheel</strong>
+        <div class="muted small">${p.streak ? `Day ${p.cycleDay} of 7 · ${p.streak}-day streak` : 'Start your streak today'}</div></div>
+    </div>
+    <div class="steps" aria-label="Day ${p.cycleDay} of 7">${steps}</div>
+    <p class="prize-line">${line}</p>`;
 }
 
 function habitCard(h) {
@@ -288,6 +315,11 @@ async function refresh(before) {
   state = await api('/api/dashboard');
   render();
   if (!before) return;
+  const p = state.prize;
+  if (p?.unlocked && !before.prizeDone) {
+    bigConfetti();
+    celebrate('🎁', `Size ${p.unlocked.size} prize unlocked!`, `Day ${p.cycleDay} of your protein streak. Budget up to $${p.unlocked.budget}. Ask Muse to spin the wheel.`);
+  }
   if (state.level.level > before.level) {
     bigConfetti();
     celebrate('🌟', `Level ${state.level.level}!`, `"${LEVEL_TITLES[Math.min(state.level.level - 1, LEVEL_TITLES.length - 1)]}". You earned this one.`);
@@ -301,7 +333,11 @@ async function refresh(before) {
 }
 
 function snapshot() {
-  return state ? { level: state.level.level, goalHit: new Set(state.habits.filter((h) => h.goalHit).map((h) => h.id)) } : null;
+  return state ? {
+    level: state.level.level,
+    goalHit: new Set(state.habits.filter((h) => h.goalHit).map((h) => h.id)),
+    prizeDone: !!state.prize?.doneToday,
+  } : null;
 }
 
 // ---------- "While you were away" ----------

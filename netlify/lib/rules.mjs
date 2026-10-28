@@ -7,6 +7,7 @@
 //   calendar:tennis        a calendar event containing "tennis" that has started
 //   rest_day               no workout on a low-readiness day (under 70) or a period day
 //   phase:luteal           you're in that phase (menstrual, follicular, ovulatory, luteal)
+//   prize_wheel            not a trigger: marks the habit whose daily streak powers the prize wheel
 //
 // Join options with "|" to accept any of them, e.g. "workout | steps>=10000".
 

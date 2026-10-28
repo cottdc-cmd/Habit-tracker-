@@ -15,6 +15,35 @@ export function levelFor(xp) {
   return { level, xp, into: xp - floor, span: next - floor };
 }
 
+// Mirrors the Protein Prize Wheel page in Notion: streak days unlock prize sizes,
+// and after the 7-day prize the streak starts over at day 1.
+export const PRIZE_TIERS = [
+  { day: 1, size: 'XS', budget: 15 },
+  { day: 3, size: 'S', budget: 30 },
+  { day: 5, size: 'M', budget: 50 },
+  { day: 7, size: 'L', budget: 100 },
+];
+
+// Daily streak for the habit whose rule includes "prize_wheel".
+// Today not done yet doesn't break it; the streak simply hasn't grown.
+export function prizeWheel(habits, logs, today) {
+  const habit = habits.find((h) => /\bprize_wheel\b/i.test(h.rule || ''));
+  if (!habit) return null;
+  const days = new Set(logs.filter((l) => l.habitId === habit.id).map((l) => l.date));
+  const doneToday = days.has(today);
+  let streak = 0;
+  for (let d = doneToday ? today : addDays(today, -1); days.has(d); d = addDays(d, -1)) streak++;
+  const cycleDay = streak ? ((streak - 1) % 7) + 1 : 0;
+  const unlocked = doneToday ? PRIZE_TIERS.find((t) => t.day === cycleDay) || null : null;
+  const next = PRIZE_TIERS.find((t) => t.day > cycleDay) || PRIZE_TIERS[0];
+  return {
+    habitId: habit.id, name: habit.name, emoji: habit.emoji,
+    streak, cycleDay, doneToday, unlocked,
+    next: { ...next, daysAway: next.day > cycleDay ? next.day - cycleDay : next.day },
+    tiers: PRIZE_TIERS,
+  };
+}
+
 export function summarize({ habits, logs, today, stats }) {
   const thisWeek = weekStart(today);
   const weekDays = daysBetween(thisWeek, addDays(thisWeek, 6));
@@ -76,5 +105,6 @@ export function summarize({ habits, logs, today, stats }) {
     winsThisWeek: logs.filter((l) => l.date >= thisWeek).length,
     showUpWeeks,
     recentWins,
+    prize: prizeWheel(habits, logs, today),
   };
 }
