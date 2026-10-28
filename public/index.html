@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#f6f1e9">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Habits">
+  <title>Little Wins</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌱</text></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <!-- Passcode gate -->
+  <section id="gate" class="gate" hidden>
+    <div class="gate-card">
+      <div class="gate-emoji">🌱</div>
+      <h1>Little Wins</h1>
+      <p>Enter your passcode. You'll only do this once on this device.</p>
+      <form id="gate-form">
+        <input id="passcode" type="password" autocomplete="current-password" placeholder="Passcode" required>
+        <button class="btn primary" type="submit">Let's go</button>
+      </form>
+      <p class="gate-error" id="gate-error" hidden>That passcode didn't work. Try again?</p>
+      <a class="link" href="?demo">Peek at a demo first</a>
+    </div>
+  </section>
+
+  <main id="app" hidden>
+    <header class="top">
+      <div>
+        <p class="eyebrow" id="today-label"></p>
+        <h1 id="greeting">Hi Debra</h1>
+      </div>
+      <button id="sync" class="btn ghost" title="Pull the latest from Oura and your calendar">
+        <span class="sync-icon" aria-hidden="true">↻</span><span class="sync-label">Sync</span>
+      </button>
+    </header>
+
+    <section class="level card" aria-label="Your level">
+      <div class="level-badge"><span>Lv</span><strong id="level-num">1</strong></div>
+      <div class="level-body">
+        <div class="level-row">
+          <span id="level-title">Getting started</span>
+          <span class="muted" id="level-xp">0 / 100 XP</span>
+        </div>
+        <div class="bar"><div class="bar-fill" id="level-bar"></div></div>
+        <div class="level-row small muted">
+          <span id="wins-week">0 wins this week</span>
+          <span id="showup"></span>
+        </div>
+      </div>
+    </section>
+
+    <p class="nudge" id="nudge"></p>
+
+    <section aria-labelledby="today-h">
+      <div class="section-head">
+        <h2 id="today-h">Today</h2>
+        <span class="muted small">Tap to tick it off</span>
+      </div>
+      <div class="habits" id="habits"></div>
+    </section>
+
+    <section aria-labelledby="body-h">
+      <div class="section-head"><h2 id="body-h">Your body today</h2><span class="muted small" id="stats-day"></span></div>
+      <div class="stats" id="stats"></div>
+    </section>
+
+    <section aria-labelledby="wins-h">
+      <div class="section-head"><h2 id="wins-h">Recent wins</h2></div>
+      <ul class="wins" id="wins"></ul>
+    </section>
+
+    <footer class="foot muted small" id="foot"></footer>
+  </main>
+
+  <!-- Big celebration -->
+  <div class="celebrate" id="celebrate" hidden>
+    <div class="celebrate-card">
+      <div class="celebrate-emoji" id="celebrate-emoji">🎉</div>
+      <h2 id="celebrate-title"></h2>
+      <p id="celebrate-body"></p>
+      <button class="btn primary" id="celebrate-close">Yay! 💛</button>
+    </div>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/canvas-confetti/1.9.3/confetti.browser.min.js"></script>
+  <script src="demo.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
