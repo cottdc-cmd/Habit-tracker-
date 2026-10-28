@@ -4,7 +4,7 @@
 //  1. Health Auto Export app (REST API automation, JSON v2):
 //     { data: { metrics: [{ name, data: [{ date, qty }] }], workouts: [{ name, start, end, duration }] } }
 //  2. A simple iOS Shortcut payload:
-//     { date: "2026-10-28", steps: 8000, exercise_minutes: 30, workout: { name: "Run", minutes: 30, start: "..." } }
+//     { date: "2026-10-28", steps: 8000, period: true, workout: { name: "Run", minutes: 30, start: "..." } }
 
 import { workoutKey } from './workouts.mjs';
 import { dayKey } from './dates.mjs';
@@ -27,6 +27,13 @@ export function parseHealth(body) {
 
   if (body?.data) {
     for (const metric of body.data.metrics || []) {
+      if (/menstrual/i.test(metric.name)) {
+        for (const point of metric.data || []) {
+          const v = String(point.value ?? point.qty ?? '').toLowerCase();
+          if (v && v !== 'none' && v !== '0') day(String(point.date).slice(0, 10)).period = true;
+        }
+        continue;
+      }
       const field = HAE_METRICS[metric.name];
       if (!field) continue;
       const totals = {};
@@ -53,6 +60,7 @@ export function parseHealth(body) {
   for (const f of ['steps', 'exercise_minutes', 'active_calories']) {
     if (body?.[f] != null && body[f] !== '') out[f] = Math.round(Number(body[f]));
   }
+  if (body?.period === true || body?.period === 'true') out.period = true;
   if (body?.workout) {
     const start = body.workout.start || new Date().toISOString();
     out.workouts.push({

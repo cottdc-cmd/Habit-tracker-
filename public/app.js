@@ -24,6 +24,14 @@ const NUDGES = [
 const LEVEL_TITLES = ['Getting started', 'Finding my rhythm', 'Showing up', 'On a roll', 'Steady glow', 'In my era', 'Gently unstoppable', 'Legend'];
 const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
 
+// Phases as "inner seasons": a pacing guide, not medical advice.
+const PHASES = {
+  menstrual: { emoji: '🌙', name: 'Menstrual', season: 'Inner winter', note: 'Rest is productive right now. Resting counts as a win.' },
+  follicular: { emoji: '🌱', name: 'Follicular', season: 'Inner spring', note: 'Energy usually climbs. A good window to start something new.' },
+  ovulatory: { emoji: '☀️', name: 'Ovulatory', season: 'Inner summer', note: 'Often your most social, high-energy days. Enjoy them.' },
+  luteal: { emoji: '🍂', name: 'Luteal', season: 'Inner autumn', note: 'Energy can dip as the days go on. Lower the bar on purpose.' },
+};
+
 // ---------- API ----------
 
 async function api(path, opts = {}) {
@@ -76,9 +84,12 @@ function render() {
   const readiness = s.stats?.readiness;
   let nudge = pick(NUDGES);
   if (readiness != null && readiness < 70) nudge = `🌙 Readiness is ${readiness}. It's a low-battery day, so resting counts as a win.`;
+  else if (s.cycle?.phase === 'menstrual') nudge = '🌙 Period days are rest days. Anything you do today is a bonus.';
   else if (doneCount === s.habits.length && doneCount > 0) nudge = "💛 Everything's ticked. Go enjoy the rest of your day.";
   else if (doneCount === 0 && hour < 12) nudge = '☀️ One small thing is enough today.';
   $('nudge').textContent = nudge;
+
+  renderCycle(s.cycle);
 
   // Habits
   const wrap = $('habits');
@@ -115,6 +126,60 @@ function render() {
   // Footer
   const last = s.lastSync?.at ? `Last synced ${timeAgo(s.lastSync.at)}` : 'Not synced yet';
   $('foot').textContent = `${last} · Syncs by itself every morning${DEMO ? ' · Demo mode' : ''}`;
+}
+
+function renderCycle(c) {
+  const el = $('cycle');
+  el.hidden = false;
+  if (!c) {
+    el.innerHTML = `
+      <div class="cycle-head"><span class="cycle-emoji">🌸</span>
+        <div><strong>Track your cycle</strong><div class="muted small">Tap on the first day of your period. Apple Health fills it in too.</div></div></div>
+      <button class="btn period-btn" data-on="1">🩸 My period started today</button>`;
+  } else {
+    const p = PHASES[c.phase];
+    const pct = (n) => `${Math.min(100, ((n - 1) / c.length) * 100)}%`;
+    const next = c.late
+      ? `Day ${c.day}. Your period may be running late.`
+      : c.nextIn <= 1 ? 'Period likely in the next day or so.' : `Next period in about ${c.nextIn} days.`;
+    el.dataset.phase = c.phase;
+    el.innerHTML = `
+      <div class="cycle-head">
+        <span class="cycle-emoji">${p.emoji}</span>
+        <div class="cycle-title">
+          <strong>${p.season} · ${p.name}</strong>
+          <div class="muted small">Day ${c.day} of ~${c.length}${c.learned ? '' : ' (learning your rhythm)'}</div>
+        </div>
+      </div>
+      <p class="cycle-note">${p.note}</p>
+      <div class="cycle-bar" aria-hidden="true">
+        <span class="seg menstrual" style="left:0;width:${pct(c.marks.follicular)}"></span>
+        <span class="seg follicular" style="left:${pct(c.marks.follicular)};width:calc(${pct(c.marks.ovulatory)} - ${pct(c.marks.follicular)})"></span>
+        <span class="seg ovulatory" style="left:${pct(c.marks.ovulatory)};width:calc(${pct(c.marks.luteal)} - ${pct(c.marks.ovulatory)})"></span>
+        <span class="seg luteal" style="left:${pct(c.marks.luteal)};right:0"></span>
+        <span class="cycle-you" style="left:${pct(Math.min(c.day, c.length) + .5)}"></span>
+      </div>
+      <div class="cycle-foot">
+        <span class="muted small">${next}</span>
+        ${c.periodToday
+          ? '<button class="link-btn period-btn" data-on="0">🩸 Logged today · undo</button>'
+          : '<button class="btn period-btn small-btn" data-on="1">🩸 Period today</button>'}
+      </div>`;
+  }
+  el.querySelector('.period-btn').addEventListener('click', (e) => logPeriod(e.currentTarget.dataset.on === '1'));
+}
+
+async function logPeriod(on) {
+  try {
+    const res = await api('/api/period', { method: 'POST', body: JSON.stringify({ on }) });
+    state = await api('/api/dashboard');
+    render();
+    if (!on) return toast('Removed. No problem.');
+    toast('Logged. Be gentle with yourself today. 💛');
+    if (res.wins?.length) markSeen(res.wins);
+  } catch (e) {
+    if (e.message !== 'auth') toast("Couldn't save that. Try again?");
+  }
 }
 
 function habitCard(h) {

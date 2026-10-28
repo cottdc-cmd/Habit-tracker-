@@ -33,6 +33,10 @@ window.Demo = (() => {
       { habitId: 'h6', emoji: '✨', name: 'Something just for me', date: ago(1), source: 'Manual', detail: 'You did it' },
       { habitId: 'h2', emoji: '👟', name: '7,000 steps', date: ago(1), source: 'Oura', detail: 'steps 8,912' },
     ],
+    cycle: {
+      phase: 'luteal', day: 21, length: 29, learned: true, nextIn: 9, late: false, periodToday: false,
+      marks: { follicular: 6, ovulatory: 14, luteal: 17 },
+    },
     lastSync: { at: new Date(Date.now() - 3 * 3600e3).toISOString(), wins: [], errors: [] },
   };
   for (const h of data.habits) for (let i = 0; i < h.weekCount; i++) h.weekDays[i] = true;
@@ -64,6 +68,13 @@ window.Demo = (() => {
           data.recentWins.unshift({ habitId, emoji: h.emoji, name: h.name, date: data.today, source: 'Manual', detail: 'You did it' });
         }
         return { ok: true };
+      }
+      if (path === '/api/period') {
+        const { on } = JSON.parse(opts.body);
+        Object.assign(data.cycle, on
+          ? { phase: 'menstrual', day: 1, nextIn: 29, periodToday: true }
+          : { phase: 'luteal', day: 21, nextIn: 9, periodToday: false });
+        return { ok: true, wins: [] };
       }
       if (path === '/api/sync') {
         const h = data.habits.find((x) => x.id === 'h2');

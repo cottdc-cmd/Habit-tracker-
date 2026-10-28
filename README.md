@@ -24,7 +24,8 @@ Google Calendar ─(once a day)───────┘   (your data)    (confet
 
 - **Weekly goals, not daily streaks.** "3 workouts this week" instead of "every day". Missing a Tuesday breaks nothing.
 - **Streaks count weeks**, and an unfinished week never resets one.
-- **Rest counts.** When readiness is under 70 and you don't work out, "Rested when my body asked" ticks itself.
+- **Rest counts.** On a low-readiness day or a period day, not working out ticks "Rested when my body asked".
+- **Cycle-aware.** Shows your phase as an "inner season" with a gentle note on pacing yourself.
 - **Instant rewards:** confetti, +XP, levels and a buzz on every tap.
 - **Big moments** get a full celebration: hitting a weekly goal, levelling up, and wins that landed while you were away.
 - **No shame copy.** No red numbers, no "you missed".
@@ -60,7 +61,7 @@ The easiest option is the **Health Auto Export** app (iOS, paid tier needed for 
 1. Create a **REST API** automation.
 2. URL: `https://YOUR-SITE.netlify.app/api/health`
 3. Header: `x-webhook-key` = your `HEALTH_WEBHOOK_KEY`
-4. Format **JSON**. Include **Workouts** plus the metrics *Step Count*, *Apple Exercise Time* and *Active Energy*. Set it to sync daily or hourly.
+4. Format **JSON**. Include **Workouts** plus the metrics *Step Count*, *Apple Exercise Time*, *Active Energy* and *Menstrual Flow*. Set it to sync daily or hourly.
 
 <details>
 <summary>Prefer a free iOS Shortcut?</summary>
@@ -77,6 +78,20 @@ POST to `/api/health?key=YOUR_KEY` with JSON like this:
 Open your site, enter your passcode and choose **Share → Add to Home Screen**. It now looks and feels like an app.
 
 ---
+
+## Cycle tracking 🌸
+
+Tap **🩸 Period today** on the dashboard, or let Apple Health send *Menstrual Flow*. One tap on day 1 is enough.
+
+| Phase | Season | The vibe |
+|---|---|---|
+| Menstrual | 🌙 Inner winter | Rest is productive. Resting counts as a win |
+| Follicular | 🌱 Inner spring | Energy climbs. Good for starting things |
+| Ovulatory | ☀️ Inner summer | Often peak energy and social battery |
+| Luteal | 🍂 Inner autumn | Energy dips. Lower the bar on purpose |
+
+- It assumes a 28-day cycle until it has learned yours from your last 3 periods.
+- Phases are estimates for pacing yourself, not medical advice.
 
 ## Make it yours (all in Notion)
 
@@ -99,7 +114,8 @@ Edit the **Habits** database. Changes show up on the next load.
 | `workout:yoga` | A workout with "yoga" in its name |
 | `steps>=7000` | Steps reach 7,000. Also works with `sleep_score`, `readiness`, `activity_score`, `active_calories`, `exercise_minutes` and `workout_minutes` |
 | `calendar:tennis` | A calendar event containing "tennis" has started |
-| `rest_day` | Readiness is under 70 and there was no workout |
+| `rest_day` | No workout on a low-readiness day (under 70) or a period day |
+| `phase:follicular` | You're in that phase (`menstrual`, `follicular`, `ovulatory`, `luteal`) |
 | `workout \| steps>=10000` | Either one |
 
 You can always tap a habit by hand too, even an automatic one.

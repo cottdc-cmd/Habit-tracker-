@@ -5,7 +5,8 @@
 //   workout:yoga           a workout whose name contains "yoga"
 //   steps>=8000            any daily metric (see METRICS) compared to a number
 //   calendar:tennis        a calendar event containing "tennis" that has started
-//   rest_day               readiness under 70 and no workout: resting counts
+//   rest_day               no workout on a low-readiness day (under 70) or a period day
+//   phase:luteal           you're in that phase (menstrual, follicular, ovulatory, luteal)
 //
 // Join options with "|" to accept any of them, e.g. "workout | steps>=10000".
 
@@ -49,8 +50,13 @@ function one(r, day, events) {
     return hit ? hit.title : null;
   }
   if (r === 'rest_day') {
-    return day.readiness != null && day.readiness < 70 && workouts.length === 0
-      ? `Readiness ${day.readiness}, you rested` : null;
+    if (workouts.length) return null;
+    if (day.readiness != null && day.readiness < 70) return `Readiness ${day.readiness}, you rested`;
+    if (day.phase === 'menstrual') return 'Period day, you rested';
+    return null;
+  }
+  if (r.startsWith('phase:')) {
+    return day.phase && day.phase === r.slice(6).trim() ? `${day.phase} phase` : null;
   }
 
   const m = r.match(/^([a-z_]+)\s*(>=|<=|>|<|=)\s*(\d+(?:\.\d+)?)$/);

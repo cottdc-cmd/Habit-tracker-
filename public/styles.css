@@ -93,6 +93,37 @@ section { margin-top: 28px; }
 }
 .nudge:empty { display: none; }
 
+/* Cycle */
+.cycle { padding: 16px 18px; margin-top: 16px; --ph: var(--me); }
+.cycle[data-phase="menstrual"] { --ph: #d96c7a; }
+.cycle[data-phase="follicular"] { --ph: var(--grow); }
+.cycle[data-phase="ovulatory"] { --ph: var(--joy); }
+.cycle[data-phase="luteal"] { --ph: var(--rest); }
+.cycle-head { display: flex; gap: 12px; align-items: center; }
+.cycle-emoji {
+  flex: none; width: 44px; height: 44px; border-radius: 14px; font-size: 24px;
+  display: grid; place-items: center; background: color-mix(in srgb, var(--ph) 18%, transparent);
+}
+.cycle-note { margin: 12px 0; font-size: 15px; }
+.cycle-bar { position: relative; height: 10px; border-radius: 99px; background: var(--line); margin: 6px 0 14px; }
+.cycle-bar .seg { position: absolute; top: 0; bottom: 0; opacity: .55; }
+.cycle-bar .seg:first-child { border-radius: 99px 0 0 99px; }
+.cycle-bar .seg:nth-child(4) { border-radius: 0 99px 99px 0; }
+.seg.menstrual { background: #d96c7a; }
+.seg.follicular { background: var(--grow); }
+.seg.ovulatory { background: var(--joy); }
+.seg.luteal { background: var(--rest); }
+.cycle-you {
+  position: absolute; top: 50%; width: 20px; height: 20px; border-radius: 50%;
+  transform: translate(-50%, -50%); background: var(--card); border: 4px solid var(--ph);
+  box-shadow: var(--shadow);
+}
+.cycle-foot { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+.period-btn.btn { background: color-mix(in srgb, #d96c7a 14%, var(--card)); color: var(--ink); margin-top: 12px; }
+.cycle-foot .period-btn.btn { margin-top: 0; }
+.small-btn { padding: 8px 14px; font-size: 14px; }
+.link-btn { background: none; border: 0; color: var(--muted); font: 500 14px Inter, system-ui, sans-serif; cursor: pointer; padding: 6px 0; }
+
 /* Habit cards */
 .habits { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
 .habit {

@@ -1,7 +1,8 @@
 // The heart of the automation: take new data, save it, tick off any habits it satisfies.
 
 import { getStore } from '@netlify/blobs';
-import { getHabits, getStats, saveDay, existingLogMap, markDone, hasData } from './data.mjs';
+import { getHabits, getStats, saveDay, existingLogMap, markDone, hasData, periodDays } from './data.mjs';
+import { cycleInfo } from './cycle.mjs';
 import { evaluate } from './rules.mjs';
 import { fetchOura, isConnected } from './oura.mjs';
 import { fetchEvents, calendarUrls } from './calendar.mjs';
@@ -13,7 +14,8 @@ export async function applyDays(incomingDays, source, { events = {}, habits, log
   if (!dates.length) return [];
   habits ||= await getHabits();
   logs ||= await existingLogMap(dates[0]);
-  const stats = await getStats(dates[0]);
+  // Look back far enough to know where you are in your cycle.
+  const stats = await getStats(addDays(dates[0], -120));
   const incomingByDate = Object.fromEntries(incomingDays.map((d) => [d.date, d]));
 
   const wins = [];
@@ -22,6 +24,8 @@ export async function applyDays(incomingDays, source, { events = {}, habits, log
     const day = incoming && hasData(incoming)
       ? await saveDay(stats.get(date), incoming)
       : stats.get(date) || { date, workouts: [] };
+    if (day.period) stats.set(date, day);
+    day.phase = cycleInfo(periodDays(stats), date)?.phase;
     for (const habit of habits) {
       const why = evaluate(habit.rule, day, events[date] || []);
       if (!why) continue;

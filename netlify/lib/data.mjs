@@ -76,7 +76,7 @@ const NUMBERS = {
 };
 
 function rowToDay(page) {
-  const day = { pageId: page.id, date: R.date(page.properties.Day), workouts: [] };
+  const day = { pageId: page.id, date: R.date(page.properties.Day), period: R.checkbox(page.properties.Period), workouts: [] };
   for (const [k, prop] of Object.entries(NUMBERS)) day[k] = R.number(page.properties[prop]);
   day.workouts = R.text(page.properties['Workout log'])
     .split('\n').filter(Boolean)
@@ -109,6 +109,7 @@ export function mergeDay(existing, incoming) {
     if (!prev || (w.minutes || 0) > (prev.minutes || 0)) byKey.set(w.key, w);
   }
   out.workouts = [...byKey.values()];
+  out.period = !!(existing?.period || incoming.period);
   return out;
 }
 
@@ -117,6 +118,7 @@ export async function saveDay(existing, incoming) {
   const props = {
     Name: P.title(day.date),
     Day: P.date(day.date),
+    Period: P.checkbox(day.period),
     Workouts: P.number(day.workouts.length),
     'Workout minutes': P.number(day.workouts.reduce((s, w) => s + (w.minutes || 0), 0)),
     'Workout log': P.text(day.workouts.map((w) => [w.key, w.name, w.minutes, w.source].join('|')).join('\n')),
@@ -128,5 +130,14 @@ export async function saveDay(existing, incoming) {
 }
 
 export function hasData(d) {
-  return Object.keys(NUMBERS).some((k) => d[k] != null) || (d.workouts || []).length > 0;
+  return Object.keys(NUMBERS).some((k) => d[k] != null) || (d.workouts || []).length > 0 || !!d.period;
 }
+
+// Tapped on the dashboard. Unlike merging, this can also switch a day off.
+export async function setPeriod(date, on) {
+  const existing = (await getStats(date)).get(date);
+  if (existing) await updatePage(existing.pageId, { Period: P.checkbox(on) });
+  else if (on) await saveDay(null, { date, period: true, workouts: [] });
+}
+
+export const periodDays = (stats) => [...stats.values()].filter((d) => d.period).map((d) => d.date);

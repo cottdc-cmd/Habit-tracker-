@@ -53,6 +53,7 @@ const statsDb = await makeDb('Daily Stats', '💍', {
   Workouts: num,
   'Workout minutes': num,
   'Workout log': text,
+  Period: { checkbox: {} },
 });
 
 // Starter habits. Edit, rename or add more right in Notion.
