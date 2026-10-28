@@ -28,3 +28,20 @@ export const unauthorized = () => json({ error: 'Wrong passcode' }, 401);
 export const oauthState = () =>
   createHash('sha256').update(`oura:${process.env.DASHBOARD_PASSCODE || ''}`).digest('hex').slice(0, 32);
 export const checkState = (s) => safeEqual(s, oauthState());
+
+// Wraps a function so any crash comes back as a readable message
+// (shown on the dashboard) instead of a bare 502.
+export const safe = (fn) => async (req, ctx) => {
+  try {
+    return await fn(req, ctx);
+  } catch (e) {
+    console.error(e);
+    let msg = e.message || String(e);
+    if (/Could not find database|shared with your integration/i.test(msg)) {
+      msg = 'Notion is blocking the app. In Notion, open the Little Wins page → ••• → Connections → add your integration.';
+    } else if (/Missing env var/i.test(msg)) {
+      msg = `${msg}. Add it in Netlify, then redeploy.`;
+    }
+    return json({ error: msg }, 500);
+  }
+};

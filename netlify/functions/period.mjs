@@ -3,15 +3,15 @@
 import { setPeriod } from '../lib/data.mjs';
 import { applyDays } from '../lib/sync.mjs';
 import { dayKey } from '../lib/dates.mjs';
-import { json, checkPasscode, unauthorized } from '../lib/http.mjs';
+import { json, checkPasscode, unauthorized, safe } from '../lib/http.mjs';
 
-export default async (req) => {
+export default safe(async (req) => {
   if (req.method !== 'POST') return json({ error: 'POST only' }, 405);
   if (!checkPasscode(req)) return unauthorized();
   const { date = dayKey(), on = true } = await req.json();
   await setPeriod(date, !!on);
   const wins = on ? await applyDays([{ date, workouts: [] }], 'Manual') : [];
   return json({ ok: true, wins });
-};
+});
 
 export const config = { path: '/api/period' };
