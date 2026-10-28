@@ -16,6 +16,7 @@ export default async (req) => {
     const { wins } = await runSync();
     return page(`<h1>💍 Oura connected!</h1><p>First sync found ${wins.length} win${wins.length === 1 ? '' : 's'}.</p>`);
   } catch (e) {
+    console.error('Oura connect failed', e);
     return page(`Oura didn't connect: ${e.message}`);
   }
 };

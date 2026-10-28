@@ -60,6 +60,7 @@ export async function runSync({ days = 3 } = {}) {
   const wins = await applyDays(incoming, 'Oura', { events });
 
   const result = { at: new Date().toISOString(), wins, errors };
+  console.log('Sync result', JSON.stringify({ ouraDays: Object.keys(oura), calendarDays: Object.keys(events), wins: wins.length, errors }));
   await getStore('meta').setJSON('last-sync', result);
   return result;
 }

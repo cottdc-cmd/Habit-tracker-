@@ -55,8 +55,10 @@ export async function isConnected() {
 async function get(token, path, start, end) {
   const url = `${API}/${path}?start_date=${start}&end_date=${end}`;
   const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
-  if (!res.ok) throw new Error(`Oura ${path}: ${res.status}`);
-  return (await res.json()).data || [];
+  if (!res.ok) throw new Error(`Oura ${path}: ${res.status} ${(await res.text()).slice(0, 200)}`);
+  const data = (await res.json()).data || [];
+  console.log(`Oura ${path} ${start}..${end}: ${data.length} records`);
+  return data;
 }
 
 // Returns { 'YYYY-MM-DD': { date, sleep_score, readiness, ..., workouts: [] } }
