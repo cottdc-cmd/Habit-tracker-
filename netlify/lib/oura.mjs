@@ -71,6 +71,8 @@ export async function fetchOura(start, end, endExclusive) {
     get(token, 'workout', start, end),
   ]);
 
+  if (![sleep, readiness, activity, workouts].some((a) => a.length)) await diagnoseEmpty(token, start);
+
   const days = {};
   const day = (d) => (days[d] ||= { date: d, workouts: [] });
 
@@ -95,6 +97,22 @@ export async function fetchOura(start, end, endExclusive) {
     });
   }
   return days;
+}
+
+// Oura answered but sent nothing. Log which account is linked and whether
+// any data exists further back, without logging personal details.
+async function diagnoseEmpty(token, start) {
+  try {
+    const res = await fetch(`${API}/personal_info`, { headers: { Authorization: `Bearer ${token}` } });
+    const info = res.ok ? await res.json() : {};
+    console.log(`Oura diagnose: personal_info ${res.status}, account id present: ${!!info.id}`);
+    const from = new Date(`${start}T12:00:00Z`);
+    from.setUTCDate(from.getUTCDate() - 30);
+    const older = await get(token, 'daily_activity', from.toISOString().slice(0, 10), start);
+    console.log(`Oura diagnose: ${older.length} activity days in the 30 days before ${start}${older.length ? `, latest ${older.at(-1).day}` : ''}`);
+  } catch (e) {
+    console.log(`Oura diagnose failed: ${e.message}`);
+  }
 }
 
 const prettify = (s) => String(s || 'Workout').replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
