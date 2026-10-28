@@ -98,3 +98,12 @@ test('prize wheel follows the Notion page rules', async () => {
   p = prizeWheel(habits, run(4, '2026-10-28'), '2026-10-28');
   assert.deepEqual([p.unlocked, p.next.size, p.next.daysAway], [null, 'M', 1]);
 });
+
+test('low readiness run powers the burnout warning', async () => {
+  const { lowReadinessRun } = await import('../netlify/lib/summary.mjs');
+  const m = (o) => new Map(Object.entries(o).map(([d, r]) => [d, { readiness: r }]));
+  assert.equal(lowReadinessRun(m({ '2026-10-28': 60, '2026-10-27': 65, '2026-10-26': 55, '2026-10-25': 80 }), '2026-10-28'), 3);
+  assert.equal(lowReadinessRun(m({ '2026-10-27': 60, '2026-10-26': 65 }), '2026-10-28'), 2, "today's score not in yet");
+  assert.equal(lowReadinessRun(m({ '2026-10-28': 75, '2026-10-27': 60 }), '2026-10-28'), 0);
+  assert.equal(lowReadinessRun(new Map(), '2026-10-28'), 0);
+});

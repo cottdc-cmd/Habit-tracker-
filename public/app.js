@@ -83,8 +83,11 @@ function render() {
   const doneCount = s.habits.filter((h) => h.doneToday).length;
   const readiness = s.stats?.readiness;
   let nudge = pick(NUDGES);
-  if (readiness != null && readiness < 70) nudge = `🌙 Readiness is ${readiness}. It's a low-battery day, so resting counts as a win.`;
+  const loggedOff = s.habits.find((h) => /log(ged)? off/i.test(h.name));
+  if (s.lowReadinessDays >= 3) nudge = `🫶 Your body has been running low for ${s.lowReadinessDays} days. If you can, cancel or shrink one thing today. That's the win.`;
+  else if (readiness != null && readiness < 70) nudge = `🌙 Readiness is ${readiness}. It's a low-battery day, so resting counts as a win.`;
   else if (s.cycle?.phase === 'menstrual') nudge = '🌙 Period days are rest days. Anything you do today is a bonus.';
+  else if (hour >= 17 && loggedOff && !loggedOff.doneToday) nudge = `🛑 Done with work for today? Tap "${loggedOff.name}". Closing the laptop counts.`;
   else if (doneCount === s.habits.length && doneCount > 0) nudge = "💛 Everything's ticked. Go enjoy the rest of your day.";
   else if (doneCount === 0 && hour < 12) nudge = '☀️ One small thing is enough today.';
   $('nudge').textContent = nudge;

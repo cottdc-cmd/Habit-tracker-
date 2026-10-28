@@ -26,7 +26,7 @@ async function makeDb(title, emoji, properties) {
 const habitsDb = await makeDb('Habits', '🌱', {
   Name: { title: {} },
   Emoji: text,
-  Area: select(['Move', 'Rest', 'Joy', 'Grow', 'Fuel']),
+  Area: select(['Move', 'Rest', 'Joy', 'Grow', 'Fuel', 'Boundaries']),
   'Weekly goal': num,
   Rule: text,
   Order: num,
@@ -66,6 +66,10 @@ const starters = [
   ['📚', 'Reading', 'Grow', 3, 'calendar:reading'],
   ['✨', 'Something just for me', 'Joy', 2, 'manual'],
   ['🥩', 'Protein goal', 'Fuel', 5, 'manual | prize_wheel'],
+  // Burnout guardrails. Work meetings aren't on Google Calendar, so most are a quick tap.
+  ['🛑', 'Logged off on time', 'Boundaries', 4, 'manual'],
+  ['☕', 'Took a real break', 'Boundaries', 3, 'manual'],
+  ['🛡️', 'Protected my time', 'Boundaries', 0, 'calendar:focus | calendar:me time'],
 ];
 for (const [i, [emoji, name, area, goal, rule]] of starters.entries()) {
   await createPage(habitsDb, {

@@ -11,6 +11,7 @@
   --joy: #e2a93b;
   --grow: #6fa58a;
   --fuel: #4f9fa6;
+  --bound: #b07ac4;
   --me: #c47bb0;
   --done-bg: #f0f7f2;
   --radius: 20px;
@@ -160,6 +161,7 @@ section { margin-top: 28px; }
 .habit[data-area="Joy"] { --c: var(--joy); }
 .habit[data-area="Grow"] { --c: var(--grow); }
 .habit[data-area="Fuel"] { --c: var(--fuel); }
+.habit[data-area="Boundaries"] { --c: var(--bound); }
 .habit-top { display: flex; align-items: center; gap: 10px; }
 .habit-emoji {
   flex: none; width: 44px; height: 44px; border-radius: 14px; font-size: 24px;

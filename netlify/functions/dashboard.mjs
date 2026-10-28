@@ -1,7 +1,7 @@
 import { getStore } from '@netlify/blobs';
 import { getHabits, getLogs, getStats, periodDays } from '../lib/data.mjs';
 import { cycleInfo } from '../lib/cycle.mjs';
-import { summarize } from '../lib/summary.mjs';
+import { summarize, lowReadinessRun } from '../lib/summary.mjs';
 import { dayKey, addDays } from '../lib/dates.mjs';
 import { json, checkPasscode, unauthorized, safe } from '../lib/http.mjs';
 
@@ -17,7 +17,8 @@ export default safe(async (req) => {
   // Show today's body stats, or yesterday's if today's haven't landed yet.
   const todayStats = stats.get(today) || stats.get(addDays(today, -1)) || null;
   const cycle = cycleInfo(periodDays(stats), today);
-  return json({ ...summarize({ habits, logs, today, stats: todayStats }), cycle, lastSync });
+  const lowReadinessDays = lowReadinessRun(stats, today);
+  return json({ ...summarize({ habits, logs, today, stats: todayStats }), cycle, lowReadinessDays, lastSync });
 });
 
 // "Last synced" is nice to have; never let it break the dashboard.

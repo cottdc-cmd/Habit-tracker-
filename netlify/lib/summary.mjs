@@ -44,6 +44,15 @@ export function prizeWheel(habits, logs, today) {
   };
 }
 
+// Burnout guardrail: how many days in a row (ending today or yesterday)
+// Oura readiness has been under 70. Missing days end the run.
+export function lowReadinessRun(statsByDate, today) {
+  let run = 0;
+  let d = statsByDate.get(today)?.readiness != null ? today : addDays(today, -1);
+  for (; statsByDate.get(d)?.readiness != null && statsByDate.get(d).readiness < 70; d = addDays(d, -1)) run++;
+  return run;
+}
+
 export function summarize({ habits, logs, today, stats }) {
   const thisWeek = weekStart(today);
   const weekDays = daysBetween(thisWeek, addDays(thisWeek, 6));

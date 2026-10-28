@@ -23,6 +23,8 @@ window.Demo = (() => {
       habit('h5', '📚', 'Reading', 'Grow', 3, 'calendar:reading', 1, false, null, null, 3),
       habit('h6', '✨', 'Something just for me', 'Joy', 2, 'manual', 1, false, null, null, 1),
       habit('h7', '🥩', 'Protein goal', 'Fuel', 5, 'manual | prize_wheel', 2, false, null, null, 1),
+      habit('h8', '🛑', 'Logged off on time', 'Boundaries', 4, 'manual', 2, false, null, null, 2),
+      habit('h9', '☕', 'Took a real break', 'Boundaries', 3, 'manual', 1, false, null, null, 0),
     ],
     stats: { date: key(today), sleep_score: 82, readiness: 74, steps: 5230, exercise_minutes: 34 },
     level: { level: 4, xp: 680, into: 80, span: 400 },
