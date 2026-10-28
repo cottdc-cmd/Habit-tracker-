@@ -20,7 +20,7 @@ window.Demo = (() => {
       habit('h2', '👟', '7,000 steps', 'Move', 4, 'steps>=7000', 2, false, null, null, 2),
       habit('h3', '😴', 'Slept well', 'Rest', 4, 'sleep_score>=75', 3, true, 'Oura', 'sleep score 82', 6),
       habit('h4', '🌙', 'Rested when my body asked', 'Rest', 0, 'rest_day', 1, false, null, null, 0),
-      habit('h5', '🎾', 'Tennis', 'Joy', 1, 'calendar:tennis', 0, false, null, null, 3),
+      habit('h5', '📚', 'Reading', 'Grow', 3, 'calendar:reading', 1, false, null, null, 3),
       habit('h6', '✨', 'Something just for me', 'Joy', 2, 'manual', 1, false, null, null, 1),
     ],
     stats: { date: key(today), sleep_score: 82, readiness: 74, steps: 5230, exercise_minutes: 34 },

@@ -63,7 +63,7 @@ const starters = [
   // Switch to 'sleep_score>=75' once Oura is connected.
   ['😴', 'Slept well', 'Rest', 4, 'manual'],
   ['🌙', 'Rested when my body asked', 'Rest', 0, 'rest_day'],
-  ['🎾', 'Tennis', 'Joy', 1, 'calendar:tennis'],
+  ['📚', 'Reading', 'Grow', 3, 'calendar:reading'],
   ['✨', 'Something just for me', 'Joy', 2, 'manual'],
 ];
 for (const [i, [emoji, name, area, goal, rule]] of starters.entries()) {
