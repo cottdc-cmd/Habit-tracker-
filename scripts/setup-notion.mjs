@@ -60,7 +60,8 @@ const statsDb = await makeDb('Daily Stats', '💍', {
 const starters = [
   ['🏃‍♀️', 'Move my body', 'Move', 3, 'workout'],
   ['👟', '7,000 steps', 'Move', 4, 'steps>=7000'],
-  ['😴', 'Slept well', 'Rest', 4, 'sleep_score>=75'],
+  // Switch to 'sleep_score>=75' once Oura is connected.
+  ['😴', 'Slept well', 'Rest', 4, 'manual'],
   ['🌙', 'Rested when my body asked', 'Rest', 0, 'rest_day'],
   ['🎾', 'Tennis', 'Joy', 1, 'calendar:tennis'],
   ['✨', 'Something just for me', 'Joy', 2, 'manual'],
