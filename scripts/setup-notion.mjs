@@ -58,7 +58,7 @@ const statsDb = await makeDb('Daily Stats', '💍', {
 
 // Starter habits. Edit, rename or add more right in Notion.
 const starters = [
-  ['🏃‍♀️', 'Move my body', 'Move', 3, 'workout'],
+  ['🏃‍♀️', 'Move my body', 'Move', 3, 'workout | exercise_minutes>=30'],
   ['👟', '7,000 steps', 'Move', 4, 'steps>=7000'],
   // Switch to 'sleep_score>=75' once Oura is connected.
   ['😴', 'Slept well', 'Rest', 4, 'manual'],
