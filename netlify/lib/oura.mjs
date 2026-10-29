@@ -39,12 +39,12 @@ export const exchangeCode = (code, redirectUri) =>
   tokenRequest({ grant_type: 'authorization_code', code, redirect_uri: redirectUri });
 
 async function accessToken() {
+  if (process.env.OURA_PERSONAL_TOKEN) return process.env.OURA_PERSONAL_TOKEN;
   const saved = await store().get('tokens', { type: 'json' });
   if (saved) {
     if (Date.now() < saved.expires_at - 60_000) return saved.access_token;
     return (await tokenRequest({ grant_type: 'refresh_token', refresh_token: saved.refresh_token })).access_token;
   }
-  if (process.env.OURA_PERSONAL_TOKEN) return process.env.OURA_PERSONAL_TOKEN;
   throw new Error('Oura not connected yet. Open /api/oura-connect once.');
 }
 
@@ -64,12 +64,14 @@ async function get(token, path, start, end) {
 // Returns { 'YYYY-MM-DD': { date, sleep_score, readiness, ..., workouts: [] } }
 export async function fetchOura(start, end, endExclusive) {
   const token = await accessToken();
-  const [sleep, readiness, activity, workouts] = await Promise.all([
-    get(token, 'daily_sleep', start, end),
-    get(token, 'daily_readiness', start, end),
+  // Oura's end_date is exclusive, so ask for one day past `end` and drop extras.
+  const upTo = (rows) => rows.filter((r) => r.day <= end);
+  const [sleep, readiness, activity, workouts] = (await Promise.all([
+    get(token, 'daily_sleep', start, endExclusive),
+    get(token, 'daily_readiness', start, endExclusive),
     get(token, 'daily_activity', start, endExclusive),
-    get(token, 'workout', start, end),
-  ]);
+    get(token, 'workout', start, endExclusive),
+  ])).map(upTo);
 
   if (![sleep, readiness, activity, workouts].some((a) => a.length)) await diagnoseEmpty(token, start);
 
@@ -79,7 +81,6 @@ export async function fetchOura(start, end, endExclusive) {
   for (const s of sleep) day(s.day).sleep_score = s.score;
   for (const r of readiness) day(r.day).readiness = r.score;
   for (const a of activity) {
-    if (a.day > end) continue;
     Object.assign(day(a.day), {
       activity_score: a.score,
       steps: a.steps,
