@@ -1,5 +1,5 @@
-// One-time setup for the star chart: builds Chores, Rewards and Star Ledger
-// databases inside a Notion page, seeds the starters, and prints the IDs.
+// One-time setup for the star chart: builds Routines & Chores, Star Prizes,
+// Coin Store and Star Ledger databases inside a Notion page, seeds the starters, and prints the IDs.
 //
 //   npm run setup:stars
 //
@@ -25,56 +25,84 @@ async function makeDb(title, emoji, properties) {
   return res.id;
 }
 
-const choresDb = await makeDb('Chores', '🧺', {
+const choresDb = await makeDb('Routines & Chores', '🧺', {
   Name: { title: {} },
   Emoji: text,
-  Group: select(['Morning', 'After school']),
+  Group: select(['Morning', 'After school', 'Money']),
+  Coins: { number: {} },
   Order: { number: {} },
   Active: { checkbox: {} },
 });
 
-const rewardsDb = await makeDb('Rewards', '🎁', {
+const prizesDb = await makeDb('Star Prizes', '🏆', {
   Name: { title: {} },
   Emoji: text,
   Cost: { number: {} },
   Active: { checkbox: {} },
 });
 
+const storeDb = await makeDb('Coin Store', '🛍️', {
+  Name: { title: {} },
+  Emoji: text,
+  Price: { number: {} },
+  Jar: select(['Spend', 'Save', 'Give']),
+  Goal: { checkbox: {} },
+  Active: { checkbox: {} },
+});
+
 const ledgerDb = await makeDb('Star Ledger', '⭐', {
   Name: { title: {} },
-  Type: select(['Chore', 'Bonus', 'Removed', 'Reward']),
+  Type: select(['Check', 'Routine', 'Bonus', 'Removed', 'Prize', 'Purchase']),
   Stars: { number: {} },
+  Coins: { number: {} },
+  Jar: select(['Tray', 'Spend', 'Save', 'Give']),
+  Status: select(['To deliver', 'Delivered']),
   Date: { date: {} },
   Chore: { relation: { database_id: choresDb, single_property: {} } },
-  Reward: { relation: { database_id: rewardsDb, single_property: {} } },
+  Reward: { relation: { database_id: prizesDb, single_property: {} } },
+  Item: { relation: { database_id: storeDb, single_property: {} } },
   Key: text,
+  Placed: text,
+  Note: text,
   Logged: { created_time: {} },
 });
 
-const chores = [
-  ['👗', 'Get dressed', 'Morning'],
-  ['🪥', 'Brush teeth', 'Morning'],
-  ['🎒', 'Backpack and shoes away', 'After school'],
-  ['🍽️', 'Plate to the sink', 'After school'],
+// [emoji, name, group, coins]
+const tasks = [
+  ['🥣', 'Eat breakfast', 'Morning', 0], ['🛏️', 'Make bed', 'Morning', 0], ['🪥', 'Brush teeth', 'Morning', 0],
+  ['💇‍♀️', 'Brush hair', 'Morning', 0], ['👗', 'Get dressed', 'Morning', 0], ['🐶', 'Feed dogs', 'Morning', 1],
+  ['🚗', 'Ready to leave', 'Morning', 0],
+  ['📝', 'Pull out homework', 'After school', 0], ['👟', 'Put away shoes', 'After school', 0], ['🍝', 'Eat dinner', 'After school', 0],
+  ['🛁', 'Bath', 'After school', 0], ['🪥', 'Brush teeth', 'After school', 0], ['🐶', 'Feed dogs', 'After school', 1],
+  ['🍽️', 'Plate to the sink', 'Money', 1], ['🧺', 'Clothes in the hamper', 'Money', 1], ['🍴', 'Set the table', 'Money', 1],
+  ['🪴', 'Water plants', 'Money', 1], ['🧦', 'Match socks', 'Money', 1], ['🧽', 'Wipe the table', 'Money', 1],
+  ['🧸', 'Toys in bins', 'Money', 1],
 ];
-for (const [i, [emoji, name, group]] of chores.entries()) {
-  await createPage(choresDb, { Name: P.title(name), Emoji: P.text(emoji), Group: P.select(group), Order: P.number(i + 1), Active: P.checkbox(true) });
+for (const [i, [emoji, name, group, coins]] of tasks.entries()) {
+  await createPage(choresDb, { Name: P.title(name), Emoji: P.text(emoji), Group: P.select(group), Coins: P.number(coins), Order: P.number(i + 1), Active: P.checkbox(true) });
 }
-console.log(`✓ ${chores.length} starter chores`);
+console.log(`✓ ${tasks.length} routine items and money chores`);
 
-const rewards = [
-  ['🍭', 'Pick a treat', 10],
-  ['🎬', 'Pick the Friday movie', 20],
-  ['🎡', 'Choose a family outing', 40],
-];
-for (const [emoji, name, cost] of rewards) {
-  await createPage(rewardsDb, { Name: P.title(name), Emoji: P.text(emoji), Cost: P.number(cost), Active: P.checkbox(true) });
+const prizes = [['🍬', 'Candy pick', 2], ['📺', '15 min screen time', 4], ['🍨', 'Dessert pick', 6], ['🎬', 'Movie night pick', 12], ['🎡', 'Family outing', 30]];
+for (const [emoji, name, cost] of prizes) {
+  await createPage(prizesDb, { Name: P.title(name), Emoji: P.text(emoji), Cost: P.number(cost), Active: P.checkbox(true) });
 }
-console.log(`✓ ${rewards.length} starter rewards`);
+console.log(`✓ ${prizes.length} star prizes`);
+
+const items = [
+  ['⭐', 'Stickers', 2, 'Spend'], ['🎀', 'Hair clip', 5, 'Spend'], ['🧸', 'Small toy', 5, 'Spend'],
+  ['🎨', 'Craft kit', 10, 'Save'], ['📚', 'Book or bigger toy', 20, 'Save'],
+  ['🎁', 'Gift for a friend', 5, 'Give'], ['🐾', 'Animal shelter gift', 5, 'Give'],
+];
+for (const [emoji, name, price, jar] of items) {
+  await createPage(storeDb, { Name: P.title(name), Emoji: P.text(emoji), Price: P.number(price), Jar: P.select(jar), Active: P.checkbox(true) });
+}
+console.log(`✓ ${items.length} store items`);
 
 console.log(`\nAdd these to .env and to Netlify (Site configuration → Environment variables):\n
 STARS_CHORES_DB=${choresDb}
-STARS_REWARDS_DB=${rewardsDb}
+STARS_REWARDS_DB=${prizesDb}
+STARS_STORE_DB=${storeDb}
 STARS_LEDGER_DB=${ledgerDb}
 KIOSK_KEY=${randomBytes(12).toString('hex')}
 

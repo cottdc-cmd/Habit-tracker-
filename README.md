@@ -137,44 +137,83 @@ You can always tap a habit by hand too, even an automatic one.
 
 # ⭐ Star Chart (wall tablet)
 
-A calm chore and star chart for the kids, at `/stars/`. Try it with `/stars/?demo`.
+A calm routine, star and coin chart for the kids, at `/stars/`. Try it with `/stars/?demo`.
 
-- Big picture tiles in **Morning** and **After school**. Tap to check, tap again to undo. Each one is worth 1 ⭐.
-- The star total, rewards with progress bars, and a 7-day strip are always on screen.
-- It resets itself at local midnight and is fine to leave open for days or weeks.
-- **Grown-ups press and hold for 1 second** to add a bonus star, remove a star, or collect a ready reward. Quick taps do nothing.
+**Two currencies.** Stars buy treats and experiences. Pretend coins teach money.
 
-## Setup (about 10 minutes, once)
+- **Routines (stars).** Morning and After school checklists. Finishing every item earns 1 ⭐ for that routine, so 2 a day at most. "Ready by 7:30" is just a family goal and never blocks the star.
+- **Money chores (coins).** Each one earns 1 🪙. Items like 🐶 Feed dogs sit in a routine *and* earn a coin with one tap.
+- **Coin tray and jars.** New coins wait in the tray. She taps 🛍️ Spend, 🐷 Save or 💝 Give to drop each one in.
+- **Star prizes.** A ladder with progress bars. She can spend early or save up.
+- **Coin store.** Spend jar items, one Save goal she picks herself, and Give gifts.
+- Everything ticks over at local midnight. Balances never reset. It's fine to leave open for weeks.
 
-1. In Notion, create a page called **Star Chart** and connect your integration to it (••• → **Connections**).
-2. Put its ID in `.env` as `STARS_PARENT_PAGE_ID`, then run `npm run setup:stars`.
-3. Copy the four values it prints into Netlify's environment variables and redeploy.
-4. On the tablet, open `https://YOUR-SITE.netlify.app/stars/?k=YOUR_KIOSK_KEY` and pin the screen. There's no login.
+## Grown-ups (press and hold)
 
-**Optional: a ping when she's ready for a prize.** Install the free **ntfy** app and subscribe to a hard-to-guess topic name. Set `NTFY_TOPIC` to that name in Netlify. You'll get a push the moment a reward becomes affordable.
-
-Also optional: `STARS_CHILD_NAME` (shown as "June's stars"). For a dark screen, add `&theme=dark` to the link. Otherwise it follows the tablet.
-
-## Your data (all in Notion)
-
-| Database | What it is |
+| Hold | What it does |
 |---|---|
-| **Chores** | Emoji, Name, Group (`Morning` / `After school`), Order, Active. Edit freely |
-| **Rewards** | Emoji, Name, Cost, Active. Edit freely |
-| **Star Ledger** | Every star ever: chores (+1), bonus (+1), removed (−1), rewards collected (−cost), with the date and the time it was logged |
+| 🙋 Grown-ups were the delay (1 s) | Gives that routine's star even if items are unchecked |
+| ＋ ⭐ Bonus / － ⭐ / － 🪙 (1 s) | Extra effort, or undo a star or coin (the tray first, then Spend, Save, Give) |
+| A ready prize or store item (1 s) | Collects it, deducts the cost, and adds it to **To deliver** |
+| ✓ Delivered (1 s) | Marks it handed over |
+| ⚙️ Edit lists (2 s) | Opens the admin screen |
 
-- **The balance is the sum of the Stars column.** Add a Sum to that column in Notion to check it.
-- You can fix mistakes right in the ledger. Changes show on the tablet within 5 minutes. Edits to rows over 2 weeks old show the next morning.
-- Untapping a chore moves its row to Notion's Trash. Nothing else is ever deleted.
+Quick taps on these do nothing, so a 5-year-old can't trigger them by accident.
+
+## Edit the lists
+
+Hold **⚙️ Edit lists** at the bottom of the tablet for 2 seconds. You can rename, re-price, add, or hide (untick Active) anything:
+
+- **Routines & chores.** Group is `Morning`, `After school` or `Money`. Coins is what it earns (0 for routine-only items).
+- **Star prizes.** Name, emoji and star cost.
+- **Coin store.** Name, emoji, coin price and jar (`Spend`, `Save` or `Give`).
+
+The same lists are Notion databases on the **Star Chart** page, so you can also edit them there.
+
+## Your data (all in Notion → Star Chart)
+
+**Star Ledger** has one row for everything that happened, with its date and the time it was logged:
+
+| Type | Stars | Coins |
+|---|---|---|
+| Check (an item ticked) | 0 | the chore's coins, with **Jar** = where the coin is now |
+| Routine (all done, or grown-ups were the delay) | +1 | |
+| Bonus / Removed | ±1 | or −1 coin |
+| Prize | −cost | Status: To deliver → Delivered |
+| Purchase | | −price from its jar. Status: To deliver → Delivered |
+
+- **Stars = the sum of Stars. Each jar = the sum of Coins for that Jar.** Add Sums in a Notion view to check them.
+- Unticking an item moves its row to Notion's Trash. Nothing else is deleted.
 
 ## If saving fails
 
-Every tap is stored on the tablet first, then sent to Notion. If that fails, a yellow message says how many taps are waiting, and it keeps retrying, even after a reload. Taps are never dropped silently. If Notion refuses a tap outright (for example, a reward was collected with too few stars), it says why and undoes it on screen.
+Every tap is stored on the tablet first, then sent to Notion. If that fails, a yellow message says how many taps are waiting, and it keeps retrying, even after a reload. Taps are never dropped silently. If a tap is refused outright (for example, not enough stars), it says why and undoes it on screen.
+
+## Set up the tablet (Android, once)
+
+1. In Chrome, open `https://debra-little-wins.netlify.app/stars/?k=YOUR_KIOSK_KEY`. Tap ⋮ → **Add to Home screen**, then open it from there for a full-screen app.
+2. **Keep the screen on:** Settings → Display → Screen timeout → longest. Also turn on Settings → Developer options → **Stay awake** (screen stays on while charging). To unlock Developer options, tap Settings → About → Build number 7 times.
+3. **Lock it to the page:** Settings → Security (or Security & privacy → More) → **App pinning** → on. Open the chart, go to Recent apps, tap the app icon above the window → **Pin**. To unpin, hold Back + Overview (or swipe up and hold).
+4. Optional: for a true kiosk with auto-restart after power cuts, use **Fully Kiosk Browser** (free version is fine) with the same link as the Start URL.
+
+## Setup from scratch (a new Notion workspace)
+
+1. Make a **Star Chart** page in Notion and connect your integration (••• → Connections).
+2. Put its ID in `.env` as `STARS_PARENT_PAGE_ID`, then run `npm run setup:stars`.
+3. Copy the values it prints into Netlify's environment variables and redeploy.
+
+Optional settings: `STARS_CHILD_NAME` ("June's stars"), `STARS_MORNING_GOAL` (default "Ready by 7:30"), and `NTFY_TOPIC` (a free push to your phone via the ntfy app when a star prize becomes affordable). Add `&theme=dark` to the link to force dark mode. Otherwise it follows the tablet.
+
+## Run it locally
+
+- `npm test` runs the logic tests.
+- `npx netlify dev` runs the page and API with your `.env`. Open `http://localhost:8888/stars/?k=YOUR_KIOSK_KEY`.
+- Or just open `public/stars/index.html?demo` through any static server to click around with pretend data.
 
 ## For developers
 
-- `public/stars/`: the tablet page (plain HTML/CSS/JS).
-- `netlify/functions/stars.mjs`: `GET`/`POST /api/stars`, guarded by `KIOSK_KEY`.
-- `netlify/lib/stars/logic.mjs`: balance, week strip and tap rules (pure, tested).
+- `public/stars/`: the tablet page (plain HTML/CSS/JS, no build). `?demo` runs entirely in the browser.
+- `netlify/functions/stars.mjs`: `GET`/`POST /api/stars` (and `?lists=1` for the admin screen), guarded by `KIOSK_KEY`.
+- `netlify/lib/stars/logic.mjs`: balances, routine stars, week strip, tap validation (pure, tested).
+- `netlify/lib/stars/service.mjs`: applies taps. Every write has a unique Key, so retries never double-count.
 - `netlify/lib/stars/notion-store.mjs`: the only file that talks to Notion. To move to another database, write a file with the same exports and change the import in `store.mjs`.
-- Every write has a unique `Key`, so retries never double-count.

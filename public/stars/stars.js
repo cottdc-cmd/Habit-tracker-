@@ -1,15 +1,18 @@
-// Star chart for the wall tablet. Plain JS, no build.
+// Star + coin chart for the wall tablet. Plain JS, no build.
 //
 // Every tap goes into an "outbox" saved on the tablet first, then to the server.
 // If saving fails, the tap stays in the outbox and is retried until it lands,
 // even across a page reload. A clear message shows while anything is unsaved.
+// The screen always shows the server's last state with unsaved taps replayed on top.
 
 (() => {
   const $ = (s, el = document) => el.querySelector(s);
+  const $$ = (s, el = document) => [...el.querySelectorAll(s)];
   const params = new URLSearchParams(location.search);
   const DEMO = params.has('demo');
-  const HOLD_MS = 1000;
   const REFRESH_MS = 5 * 60 * 1000;
+  const ROUTINES = ['Morning', 'After school'];
+  const JARS = ['Spend', 'Save', 'Give'];
 
   // ---------- Small safe storage (works even if storage is blocked) ----------
   const mem = {};
@@ -20,13 +23,13 @@
     },
     set(k, v) { mem[k] = v; try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* memory only */ } },
   };
-  const NS = DEMO ? 'stars-demo:' : 'stars:';
+  const NS = DEMO ? 'stars-demo:' : 'stars2:';
 
   const theme = params.get('theme');
   if (theme === 'light' || theme === 'dark') document.documentElement.dataset.theme = theme;
 
   // ---------- Kiosk key ----------
-  let kioskKey = params.get('k') || ls.get('stars:key', '');
+  const kioskKey = params.get('k') || ls.get('stars:key', '');
   if (params.get('k')) ls.set('stars:key', params.get('k'));
 
   // ---------- Dates in the family's timezone ----------
@@ -38,20 +41,21 @@
   const addDays = (key, n) => { const d = new Date(`${key}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
   const fmt = (key, opts) => new Date(`${key}T12:00:00Z`).toLocaleDateString(undefined, { timeZone: 'UTC', ...opts });
   const uid = () => (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`);
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
   // ---------- API ----------
   class SaveError extends Error {
     constructor(message, permanent) { super(message); this.permanent = permanent; }
   }
-  async function call(method, body) {
+  async function call(method, body, query = '') {
     let res;
     try {
-      res = await fetch('/api/stars', {
+      res = await fetch(`/api/stars${query}`, {
         method,
         headers: { 'Content-Type': 'application/json', 'x-kiosk-key': kioskKey },
         body: body ? JSON.stringify(body) : undefined,
         cache: 'no-store',
-        signal: AbortSignal.timeout ? AbortSignal.timeout(20000) : undefined,
+        signal: AbortSignal.timeout ? AbortSignal.timeout(25000) : undefined,
       });
     } catch {
       throw new SaveError('No internet connection right now.', false);
@@ -62,117 +66,245 @@
     if (!res.ok) throw new SaveError(data.error || `The server said ${res.status}.`, res.status >= 400 && res.status < 500);
     return data;
   }
-  const api = DEMO ? demoApi() : { load: () => call('GET'), send: (op) => call('POST', op) };
+  const api = DEMO ? demoApi() : {
+    load: () => call('GET'),
+    send: (op) => call('POST', op),
+    lists: () => call('GET', null, '?lists=1'),
+    saveItem: (body) => call('POST', { admin: true, ...body }),
+  };
 
   // ---------- State ----------
   let server = ls.get(NS + 'last', null); // last good state from the server
   let outbox = ls.get(NS + 'outbox', []);
   const saveOutbox = () => ls.set(NS + 'outbox', outbox);
 
-  // What the screen shows: the server state with unsaved taps replayed on top.
-  function view() {
-    const today = dayKey();
-    const s = server || { chores: [], rewards: [], balance: 0, checks: {}, week: [], collected: [] };
-    let balance = s.balance;
+  // Replays taps on top of a server-shaped state. Mirrors the server's rules.
+  function replay(s, ops, today = dayKey()) {
+    const tasks = s.tasks || [];
+    const taskById = Object.fromEntries(tasks.map((t) => [t.id, t]));
+    let stars = s.stars || 0;
+    const coins = { Tray: 0, Spend: 0, Save: 0, Give: 0, ...(s.coins || {}) };
     const checks = Object.fromEntries(Object.entries(s.checks || {}).map(([d, ids]) => [d, new Set(ids)]));
+    const routines = JSON.parse(JSON.stringify(s.routines || {}));
     const perDay = Object.fromEntries((s.week || []).map((d) => [d.date, d.stars]));
     const collected = [...(s.collected || [])];
-    for (const op of outbox) {
+    let toDeliver = [...(s.toDeliver || [])];
+    const store = (s.store || []).map((x) => ({ ...x }));
+    const touched = new Map(); // "date|group" -> { date, group, delayed }
+    const day = (d, n) => { perDay[d] = (perDay[d] || 0) + n; };
+    const takeCoin = (n) => {
+      for (let i = 0; i < n; i++) {
+        const j = ['Tray', ...JARS].find((k) => coins[k] > 0);
+        if (j) coins[j]--;
+      }
+    };
+
+    for (const op of ops) {
       const set = (checks[op.date] ||= new Set());
-      if (op.type === 'check' && !set.has(op.choreId)) { set.add(op.choreId); balance++; perDay[op.date] = (perDay[op.date] || 0) + 1; }
-      else if (op.type === 'uncheck' && set.has(op.choreId)) { set.delete(op.choreId); balance--; perDay[op.date] = (perDay[op.date] || 0) - 1; }
-      else if (op.type === 'bonus') { balance++; perDay[op.date] = (perDay[op.date] || 0) + 1; }
-      else if (op.type === 'remove') { balance--; perDay[op.date] = (perDay[op.date] || 0) - 1; }
-      else if (op.type === 'collect') {
-        const r = s.rewards.find((x) => x.id === op.rewardId);
-        if (r) { balance -= r.cost; collected.unshift({ name: `${r.emoji} ${r.name}`, stars: r.cost, date: op.date }); }
+      const t = taskById[op.taskId];
+      const touch = (group, delayed = false) => {
+        if (!ROUTINES.includes(group)) return;
+        const k = `${op.date}|${group}`;
+        const cur = touched.get(k) || { date: op.date, group, delayed: false };
+        touched.set(k, { ...cur, delayed: cur.delayed || delayed });
+      };
+      switch (op.type) {
+        case 'check':
+          if (t && !set.has(t.id)) { set.add(t.id); coins.Tray += t.coins || 0; touch(t.group); }
+          break;
+        case 'uncheck':
+          if (t && set.has(t.id)) { set.delete(t.id); takeCoin(t.coins || 0); touch(t.group); }
+          break;
+        case 'delay': touch(op.group, true); break;
+        case 'bonus': stars++; day(op.date, 1); break;
+        case 'removeStar': stars--; day(op.date, -1); break;
+        case 'removeCoin': takeCoin(1); break;
+        case 'place': if (coins.Tray > 0) { coins.Tray--; coins[op.jar]++; } break;
+        case 'collect': {
+          const p = (s.prizes || []).find((x) => x.id === op.prizeId);
+          if (p) {
+            stars -= p.cost;
+            collected.unshift({ name: `${p.emoji} ${p.name}`, stars: p.cost, date: op.date });
+            toDeliver.push({ rowId: `pending-${op.id}`, name: `${p.emoji} ${p.name}`, date: op.date, type: 'Prize' });
+          }
+          break;
+        }
+        case 'buy': {
+          const it = store.find((x) => x.id === op.itemId);
+          if (it) {
+            coins[it.jar] -= it.price;
+            toDeliver.push({ rowId: `pending-${op.id}`, name: `${it.emoji} ${it.name}`, date: op.date, type: 'Purchase', jar: it.jar });
+          }
+          break;
+        }
+        case 'goal': for (const x of store) if (x.jar === 'Save') x.goal = x.id === op.itemId; break;
+        case 'deliver': toDeliver = toDeliver.filter((x) => x.rowId !== op.rowId); break;
       }
     }
+
+    // Routine stars: earned when every item is checked, or when grown-ups were the delay.
+    for (const { date, group, delayed } of touched.values()) {
+      const before = routines[date]?.[group] || null;
+      const items = tasks.filter((x) => x.group === group);
+      const complete = items.length > 0 && items.every((x) => checks[date]?.has(x.id));
+      let after;
+      if (before === 'grownups' || (delayed && !before)) after = 'grownups';
+      else if (complete) after = 'done';
+      else if (delayed) after = before || 'grownups';
+      else after = null;
+      if (!!after !== !!before) { const d = after ? 1 : -1; stars += d; day(date, d); }
+      (routines[date] ||= {})[group] = after;
+    }
+
     const week = [];
     for (let i = 6; i >= 0; i--) { const date = addDays(today, -i); week.push({ date, stars: Math.max(0, perDay[date] || 0) }); }
-    return { ...s, today, balance, done: checks[today] || new Set(), week, collected: collected.slice(0, 5) };
+    return {
+      ...s, stars, coins, store, routines, week, collected: collected.slice(0, 5), toDeliver,
+      checks: Object.fromEntries(Object.entries(checks).map(([d, ids]) => [d, [...ids]])),
+    };
+  }
+
+  function view() {
+    const today = dayKey();
+    const v = replay(server, outbox, today);
+    return { ...v, today, done: new Set(v.checks[today] || []), routineToday: v.routines[today] || {} };
   }
 
   // ---------- Rendering ----------
-  let lastBalance = null;
+  let last = { stars: null, coins: null, Morning: undefined, 'After school': undefined };
   function render() {
     if (!server) return;
     const v = view();
     $('#title').textContent = v.name ? `${v.name}'s stars` : 'My stars';
     $('#today-label').textContent = fmt(v.today, { weekday: 'long', month: 'long', day: 'numeric' });
-    $('#balance').textContent = v.balance;
-    if (lastBalance !== null && v.balance > lastBalance) bump();
-    lastBalance = v.balance;
+    $('#morning-goal').textContent = `⏰ ${v.morningGoal || 'Ready by 7:30'}`;
+    const coinTotal = v.coins.Tray + v.coins.Spend + v.coins.Save + v.coins.Give;
+    $('#stars').textContent = v.stars;
+    $('#coins').textContent = coinTotal;
+    if (last.stars !== null && v.stars > last.stars) bump($('#stars').parentElement);
+    if (last.coins !== null && coinTotal > last.coins) bump($('#coins').parentElement);
 
-    for (const section of document.querySelectorAll('.group')) {
-      const chores = v.chores.filter((c) => c.group === section.dataset.group);
-      section.hidden = chores.length === 0;
-      $('.tiles', section).innerHTML = chores.map((c) => {
-        const done = v.done.has(c.id);
-        return `<button class="tile${done ? ' done' : ''}" data-chore="${esc(c.id)}" aria-pressed="${done}">
-          <span class="check" aria-hidden="true">⭐</span>
-          <span class="emoji" aria-hidden="true">${esc(c.emoji)}</span>
-          <span class="label">${esc(c.name)}</span>
+    // Checklists + money chores
+    for (const section of $$('[data-group]', $('#app')).filter((el) => el.matches('section'))) {
+      const group = section.dataset.group;
+      const items = v.tasks.filter((t) => t.group === group);
+      $('.tiles', section).innerHTML = items.map((t) => {
+        const done = v.done.has(t.id);
+        return `<button class="tile${done ? ' done' : ''}" data-task="${esc(t.id)}" aria-pressed="${done}">
+          ${t.coins > 0 ? `<span class="badge" aria-label="earns a coin">+${t.coins} 🪙</span>` : ''}
+          <span class="check" aria-hidden="true">✅</span>
+          <span class="emoji" aria-hidden="true">${esc(t.emoji)}</span>
+          <span class="label">${esc(t.name)}</span>
         </button>`;
-      }).join('');
+      }).join('') || '<p class="empty">Nothing here yet. Add some in ⚙️ Edit lists.</p>';
+
+      const slot = $('.routine-star', section);
+      if (slot) {
+        const status = v.routineToday[group];
+        const doneCount = items.filter((t) => v.done.has(t.id)).length;
+        slot.classList.toggle('earned', !!status);
+        slot.innerHTML = `<span class="slot" aria-hidden="true">⭐</span>
+          <span>${status === 'grownups' ? 'Star earned! Thanks for your patience 💛' : status ? 'Star earned! All done 🎉' : 'Finish them all for a star'}</span>
+          <span class="dots" aria-label="${doneCount} of ${items.length} done">${items.map((t) => `<span class="dot${v.done.has(t.id) ? ' on' : ''}"></span>`).join('')}</span>`;
+        if (status && last[group] === null) bump(slot); // just earned
+        last[group] = status || null;
+      }
     }
 
-    $('#rewards').innerHTML = v.rewards.map((r) => {
-      const ready = v.balance >= r.cost;
-      const pct = Math.max(0, Math.min(100, (v.balance / r.cost) * 100));
-      return `<button class="reward hold${ready ? ' ready' : ''}" data-action="collect" data-reward="${esc(r.id)}"
-          aria-label="${esc(r.name)}: ${Math.min(v.balance, r.cost)} of ${r.cost} stars${ready ? '. Ready! Grown-ups, hold to collect.' : ''}">
-        <span class="hold-fill"></span>
-        <span class="emoji" aria-hidden="true">${esc(r.emoji)}</span>
-        <span class="name"><span>${esc(r.name)}</span><span class="cost">${ready ? 'Ready! 🎉' : `${Math.max(0, v.balance)} / ${r.cost} ⭐`}</span></span>
-        <span class="bar"><span class="bar-fill" style="width:${pct}%"></span></span>
-      </button>`;
-    }).join('') || '<p class="empty">Add rewards in Notion.</p>';
-
+    // Week strip
     $('#week').innerHTML = v.week.map((d) => `
       <div class="day${d.date === v.today ? ' today' : ''}" aria-label="${fmt(d.date, { weekday: 'long' })}: ${d.stars} stars">
         <span class="dow">${fmt(d.date, { weekday: 'narrow' })}</span>
         <span class="count">${d.stars}</span>
-        <span class="stars" aria-hidden="true">${'⭐'.repeat(Math.min(d.stars, 5))}</span>
+        <span class="stars" aria-hidden="true">${'⭐'.repeat(Math.min(d.stars, 4))}</span>
       </div>`).join('');
 
+    // Tray + jars
+    const tray = $('#tray');
+    tray.classList.toggle('empty-tray', v.coins.Tray <= 0);
+    tray.innerHTML = v.coins.Tray > 0
+      ? `${'<span class="coin" aria-hidden="true">🪙</span>'.repeat(Math.min(v.coins.Tray, 8))}${v.coins.Tray > 8 ? `<span>+${v.coins.Tray - 8}</span>` : ''}<span class="tip">👇 Tap a jar for each coin</span>`
+      : '<span>🪙 New coins land here</span>';
+    const biggest = Math.max(10, ...JARS.map((j) => v.coins[j]));
+    for (const el of $$('.jar')) {
+      const n = v.coins[el.dataset.jar];
+      $('.jar-num', el).textContent = n;
+      $('.jar-fill', el).style.height = `${Math.min(100, (Math.max(0, n) / biggest) * 100)}%`;
+      el.classList.toggle('can-place', v.coins.Tray > 0);
+      el.setAttribute('aria-label', `${el.dataset.jar} jar: ${n} coins${v.coins.Tray > 0 ? '. Tap to put a coin in.' : ''}`);
+    }
+    last.stars = v.stars; last.coins = coinTotal;
+
+    // Star prize ladder
+    $('#prizes').innerHTML = v.prizes.map((p) => progressItem({
+      action: 'collect', idAttr: `data-prize="${esc(p.id)}"`, emoji: p.emoji, name: p.name,
+      have: v.stars, cost: p.cost, unit: '⭐', readyText: 'Ready! 🎉',
+    })).join('') || '<p class="empty">Add star prizes in ⚙️ Edit lists.</p>';
+
+    // Coin store
+    const byJar = (j) => v.store.filter((x) => x.jar === j);
+    const spend = byJar('Spend').map((x) => storeItem(x, v.coins.Spend)).join('');
+    const saveItems = byJar('Save');
+    const goal = saveItems.find((x) => x.goal);
+    const save = goal
+      ? storeItem(goal, v.coins.Save, '🎯 ') + (saveItems.length > 1
+        ? `<div class="goal-picks">${saveItems.filter((x) => x !== goal).map((x) => `<button class="goal-pick" data-goal="${esc(x.id)}">${esc(x.emoji)} ${esc(x.name)} · ${x.price} 🪙</button>`).join('')}</div>` : '')
+      : `<p class="empty">Pick a goal to save for:</p><div class="goal-picks">${saveItems.map((x) => `<button class="goal-pick" data-goal="${esc(x.id)}">${esc(x.emoji)} ${esc(x.name)} · ${x.price} 🪙</button>`).join('')}</div>`;
+    const give = byJar('Give').map((x) => storeItem(x, v.coins.Give)).join('');
+    $('#store').innerHTML = `
+      <div class="store-group"><h3>🛍️ Spend jar</h3><div class="list">${spend || '<p class="empty">No items yet.</p>'}</div></div>
+      <div class="store-group"><h3>🐷 Save jar goal</h3><div class="list">${save}</div></div>
+      <div class="store-group"><h3>💝 Give jar</h3><div class="list">${give || '<p class="empty">No items yet.</p>'}</div></div>`;
+
+    // Grown-up lists
+    $('#deliver').innerHTML = v.toDeliver.length
+      ? v.toDeliver.map((d) => `<li><span>${esc(d.name)} <span class="when">${fmt(d.date, { month: 'short', day: 'numeric' })}</span></span>
+          ${outbox.some((o) => `pending-${o.id}` === d.rowId)
+            ? '<span class="when">saving…</span>'
+            : `<button class="hold pill small" data-action="deliver" data-row="${esc(d.rowId)}"><span class="hold-fill"></span><span>✓ Delivered</span></button>`}</li>`).join('')
+      : '<li class="when">Nothing waiting</li>';
     $('#collected').innerHTML = v.collected.length
       ? v.collected.map((c) => `<li><span>${esc(c.name)}</span><span class="when">${fmt(c.date, { month: 'short', day: 'numeric' })} · ${c.stars} ⭐</span></li>`).join('')
       : '<li class="when">Nothing yet</li>';
   }
-  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  function bump() { const t = $('.total'); t.classList.remove('bump'); void t.offsetWidth; t.classList.add('bump'); }
+
+  function progressItem({ action, idAttr, emoji, name, have, cost, unit, readyText, coin }) {
+    const ready = have >= cost;
+    const pct = Math.max(0, Math.min(100, (have / cost) * 100));
+    return `<button class="item hold${ready ? ' ready' : ''}${coin ? ' coin-item' : ''}" data-action="${action}" ${idAttr}
+        aria-label="${esc(name)}: ${Math.max(0, Math.min(have, cost))} of ${cost}${ready ? '. Ready! Grown-ups, hold to give it.' : ''}">
+      <span class="hold-fill"></span>
+      <span class="emoji" aria-hidden="true">${esc(emoji)}</span>
+      <span class="name"><span>${esc(name)}</span><span class="cost">${ready ? readyText : `${Math.max(0, have)} / ${cost} ${unit}`}</span></span>
+      <span class="bar"><span class="bar-fill" style="width:${pct}%"></span></span>
+    </button>`;
+  }
+  const storeItem = (x, have, prefix = '') => progressItem({
+    action: 'buy', idAttr: `data-item="${esc(x.id)}"`, emoji: x.emoji, name: prefix + x.name,
+    have, cost: x.price, unit: '🪙', readyText: x.jar === 'Give' ? 'Ready to give! 💝' : x.jar === 'Save' ? 'Unlocked! 🎉' : 'Ready! 🎉', coin: true,
+  });
+  function bump(el) { if (!el) return; el.classList.remove('bump'); void el.offsetWidth; el.classList.add('bump'); }
+  function nope(el) { if (!el) return; el.classList.remove('nope'); void el.offsetWidth; el.classList.add('nope'); }
 
   // ---------- Save status ----------
-  let stickyError = null;
+  let stickyError = null, retryMsg = '', loadMsg = '';
   function showStatus() {
     const el = $('#status');
-    if (stickyError) {
-      el.className = 'status warn';
-      el.innerHTML = `<span>⚠️ ${esc(stickyError)}</span><button type="button" data-dismiss>OK</button>`;
-      el.hidden = false;
-    } else if (outbox.length && retryMsg) {
-      el.className = 'status warn';
-      el.innerHTML = `<span>⚠️ ${outbox.length} tap${outbox.length > 1 ? 's' : ''} not saved yet. Kept on this tablet and trying again. (${esc(retryMsg)})</span>`;
-      el.hidden = false;
-    } else if (!ls.ok) {
-      el.className = 'status warn';
-      el.innerHTML = '<span>⚠️ This browser is blocking storage, so unsaved taps would be lost on reload.</span>';
-      el.hidden = false;
-    } else if (loadMsg) {
-      el.className = 'status warn';
-      el.innerHTML = `<span>⚠️ Can't reach the star chart. Showing the last saved view. (${esc(loadMsg)})</span>`;
-      el.hidden = false;
-    } else {
-      el.hidden = true;
-    }
+    let html = '';
+    if (stickyError) html = `<span>⚠️ ${esc(stickyError)}</span><button type="button" data-dismiss>OK</button>`;
+    else if (outbox.length && retryMsg) html = `<span>⚠️ ${outbox.length} tap${outbox.length > 1 ? 's' : ''} not saved yet. Kept on this tablet and trying again. (${esc(retryMsg)})</span>`;
+    else if (!ls.ok) html = '<span>⚠️ This browser is blocking storage, so unsaved taps would be lost on reload.</span>';
+    else if (loadMsg) html = `<span>⚠️ Can't reach the star chart. Showing the last saved view. (${esc(loadMsg)})</span>`;
+    el.className = 'status warn';
+    el.innerHTML = html;
+    el.hidden = !html;
   }
   $('#status').addEventListener('click', (e) => {
     if (e.target.closest('[data-dismiss]')) { stickyError = null; showStatus(); }
   });
 
   // ---------- Outbox ----------
-  let draining = false, retryMsg = '', retryTimer = null, retryDelay = 5000;
+  let draining = false, retryTimer = null, retryDelay = 5000;
   function enqueue(op) {
     outbox.push({ id: uid(), date: dayKey(), at: new Date().toISOString(), ...op });
     saveOutbox();
@@ -211,9 +343,9 @@
   }
 
   // ---------- Loading ----------
-  let loadMsg = '', loading = false;
+  let loading = false;
   async function refresh() {
-    if (loading || draining || outbox.length) return; // don't overwrite unsaved taps
+    if (loading || draining || outbox.length) return; // never overwrite unsaved taps
     loading = true;
     try {
       const s = await api.load();
@@ -237,14 +369,26 @@
     if (msg) $('#setup-msg').innerHTML = `${esc(msg)} Open it as <code>/stars/?k=YOUR_KIOSK_KEY</code>.`;
   }
 
-  // ---------- Taps ----------
+  // ---------- Kid taps ----------
   document.addEventListener('click', (e) => {
+    if (!$('#admin').hidden) return;
     const tile = e.target.closest('.tile');
-    if (!tile) return;
-    const id = tile.dataset.chore;
-    const done = view().done.has(id);
-    enqueue({ type: done ? 'uncheck' : 'check', choreId: id });
-    if (!done && navigator.vibrate) navigator.vibrate(15);
+    if (tile) {
+      const done = view().done.has(tile.dataset.task);
+      enqueue({ type: done ? 'uncheck' : 'check', taskId: tile.dataset.task });
+      if (!done && navigator.vibrate) navigator.vibrate(15);
+      return;
+    }
+    const jar = e.target.closest('.jar');
+    if (jar) {
+      if (view().coins.Tray <= 0) { nope(jar); return; }
+      enqueue({ type: 'place', jar: jar.dataset.jar });
+      bump($('.jar-body', jar));
+      if (navigator.vibrate) navigator.vibrate(15);
+      return;
+    }
+    const pick = e.target.closest('[data-goal]');
+    if (pick) enqueue({ type: 'goal', itemId: pick.dataset.goal });
   });
 
   // ---------- Press and hold (grown-ups) ----------
@@ -253,8 +397,10 @@
     const el = e.target.closest('.hold');
     if (!el || (e.button != null && e.button > 0)) return;
     cancelHold();
+    const ms = Number(el.dataset.hold) || 1000;
+    el.style.setProperty('--hold', `${ms}ms`);
     el.classList.add('holding');
-    hold = { el, x: e.clientX, y: e.clientY, timer: setTimeout(() => finishHold(el), HOLD_MS) };
+    hold = { el, x: e.clientX, y: e.clientY, timer: setTimeout(() => finishHold(el), ms) };
   }
   function cancelHold() {
     if (!hold) return;
@@ -265,24 +411,30 @@
   function finishHold(el) {
     el.classList.remove('holding');
     hold = null;
-    const action = el.dataset.action;
+    const v = view();
+    const a = el.dataset.action;
     if (navigator.vibrate) navigator.vibrate(40);
-    if (action === 'bonus') enqueue({ type: 'bonus' });
-    else if (action === 'remove') {
-      if (view().balance <= 0) { el.classList.remove('nope'); void el.offsetWidth; el.classList.add('nope'); return; }
-      enqueue({ type: 'remove' });
-    }
-    else if (action === 'collect') {
-      const v = view();
-      const r = v.rewards.find((x) => x.id === el.dataset.reward);
-      if (!r) return;
-      if (v.balance < r.cost) {
-        el.classList.remove('nope'); void el.offsetWidth; el.classList.add('nope');
-        return;
-      }
-      enqueue({ type: 'collect', rewardId: r.id });
-      cheer(r.emoji, `${r.name}! Enjoy!`);
-    }
+    if (a === 'bonus') enqueue({ type: 'bonus' });
+    else if (a === 'removeStar') { if (v.stars < 1) return nope(el); enqueue({ type: 'removeStar' }); }
+    else if (a === 'removeCoin') {
+      const total = v.coins.Tray + v.coins.Spend + v.coins.Save + v.coins.Give;
+      if (total < 1) return nope(el);
+      enqueue({ type: 'removeCoin' });
+    } else if (a === 'delay') {
+      if (v.routineToday[el.dataset.group]) return nope(el);
+      enqueue({ type: 'delay', group: el.dataset.group });
+    } else if (a === 'collect') {
+      const p = v.prizes.find((x) => x.id === el.dataset.prize);
+      if (!p || v.stars < p.cost) return nope(el);
+      enqueue({ type: 'collect', prizeId: p.id });
+      cheer(p.emoji, `${p.name}! Enjoy!`);
+    } else if (a === 'buy') {
+      const it = v.store.find((x) => x.id === el.dataset.item);
+      if (!it || v.coins[it.jar] < it.price) return nope(el);
+      enqueue({ type: 'buy', itemId: it.id });
+      cheer(it.emoji, it.jar === 'Give' ? `${it.name}. How kind! 💝` : `${it.name}! You did it!`);
+    } else if (a === 'deliver') enqueue({ type: 'deliver', rowId: el.dataset.row });
+    else if (a === 'admin') openAdmin();
   }
   document.addEventListener('pointerdown', startHold);
   document.addEventListener('pointermove', (e) => {
@@ -290,10 +442,15 @@
   });
   for (const ev of ['pointerup', 'pointercancel']) document.addEventListener(ev, cancelHold);
   window.addEventListener('blur', cancelHold);
-  // No long-press menus, image drags or selection anywhere.
-  document.addEventListener('contextmenu', (e) => e.preventDefault());
+
+  // No long-press menus, image drags, selection or zoom anywhere (inputs in the admin screen excepted).
+  const isInput = (t) => t && t.closest && t.closest('input, select, textarea');
+  document.addEventListener('contextmenu', (e) => { if (!isInput(e.target)) e.preventDefault(); });
   document.addEventListener('dragstart', (e) => e.preventDefault());
-  document.addEventListener('selectstart', (e) => e.preventDefault());
+  document.addEventListener('selectstart', (e) => { if (!isInput(e.target)) e.preventDefault(); });
+  document.addEventListener('gesturestart', (e) => e.preventDefault());
+  document.addEventListener('touchmove', (e) => { if (e.touches.length > 1) e.preventDefault(); }, { passive: false });
+  document.addEventListener('wheel', (e) => { if (e.ctrlKey) e.preventDefault(); }, { passive: false });
 
   let cheerTimer;
   function cheer(emoji, text) {
@@ -305,20 +462,84 @@
   }
   $('#cheer').addEventListener('click', () => { $('#cheer').hidden = true; });
 
+  // ---------- Admin screen (grown-ups only: hold ⚙️ for 2 seconds) ----------
+  let lists = null, tab = 'tasks';
+  const COLS = {
+    tasks: { hint: 'Morning and After school items make up the checklists. Money chores earn coins. "Coins" on a routine item (like Feed dogs) makes it earn a coin too. Untick Active to hide.' },
+    prizes: { hint: 'Star prizes, cheapest first. Untick Active to hide.' },
+    store: { hint: 'Each item belongs to one jar: Spend (store), Save (goals), Give (gifts). Untick Active to hide.' },
+  };
+  async function openAdmin() {
+    $('#admin').hidden = false;
+    $('#admin-body').innerHTML = '<p class="hint">Loading…</p>';
+    try { lists = await api.lists(); renderAdmin(); } catch (e) { $('#admin-body').innerHTML = `<p class="arow"><span class="msg err">Couldn't load the lists: ${esc(e.message)}</span></p>`; }
+  }
+  function renderAdmin() {
+    for (const b of $$('.tab')) b.classList.toggle('on', b.dataset.tab === tab);
+    $('#admin-hint').textContent = COLS[tab].hint;
+    $('#admin-body').innerHTML = lists[tab].map(adminRow).join('');
+  }
+  function adminRow(x) {
+    const id = x.id || '';
+    const num = (f, v, label) => `<label>${label}<input class="f-num" type="number" inputmode="numeric" data-f="${f}" value="${esc(v ?? '')}"></label>`;
+    const sel = (f, v, opts) => `<select data-f="${f}">${opts.map((o) => `<option${o === v ? ' selected' : ''}>${o}</option>`).join('')}</select>`;
+    let extra = '';
+    if (tab === 'tasks') extra = sel('group', x.group || 'Morning', ['Morning', 'After school', 'Money']) + num('coins', x.coins ?? 0, 'Coins') + num('order', x.order ?? 99, 'Order');
+    if (tab === 'prizes') extra = num('cost', x.cost ?? 5, 'Stars');
+    if (tab === 'store') extra = sel('jar', x.jar || 'Spend', JARS) + num('price', x.price ?? 5, 'Coins');
+    return `<div class="arow${x.active === false ? ' off' : ''}" data-id="${esc(id)}">
+      <input class="f-emoji" data-f="emoji" value="${esc(x.emoji || '')}" aria-label="Emoji">
+      <input class="f-name" data-f="name" value="${esc(x.name || '')}" placeholder="Name" aria-label="Name">
+      ${extra}
+      <label><input type="checkbox" data-f="active"${x.active === false ? '' : ' checked'}> Active</label>
+      <button class="pill small" data-save>Save</button>
+      <span class="msg"></span>
+    </div>`;
+  }
+  $('#admin').addEventListener('click', async (e) => {
+    const t = e.target;
+    if (t.closest('[data-admin-close]')) { $('#admin').hidden = true; refresh(); return; }
+    const tb = t.closest('.tab');
+    if (tb) { tab = tb.dataset.tab; renderAdmin(); return; }
+    if (t.closest('[data-admin-add]')) {
+      $('#admin-body').insertAdjacentHTML('beforeend', adminRow({ emoji: '⭐', name: '', active: true }));
+      $('#admin-body').lastElementChild.querySelector('.f-name').focus();
+      return;
+    }
+    const save = t.closest('[data-save]');
+    if (!save) return;
+    const row = save.closest('.arow');
+    const msg = $('.msg', row);
+    const fields = {};
+    for (const inp of $$('[data-f]', row)) fields[inp.dataset.f] = inp.type === 'checkbox' ? inp.checked : inp.value.trim();
+    msg.className = 'msg'; msg.textContent = 'Saving…';
+    save.disabled = true;
+    try {
+      await api.saveItem({ list: tab, id: row.dataset.id || null, fields });
+      lists = await api.lists();
+      renderAdmin();
+      const again = row.dataset.id && $(`.arow[data-id="${CSS.escape(row.dataset.id)}"] .msg`);
+      if (again) again.textContent = 'Saved ✓';
+    } catch (err) {
+      msg.className = 'msg err';
+      msg.textContent = `Not saved: ${err.message}`; // the row keeps what you typed, so nothing is lost
+      save.disabled = false;
+    }
+  });
+
   // ---------- Runs for days without babysitting ----------
   let shownDay = dayKey();
   setInterval(() => {
     const now = dayKey();
     if (now === shownDay) return;
     shownDay = now;
-    // New day: fresh tiles. Reload for a clean page (and any new version) once nothing is unsaved.
-    if (!outbox.length && !DEMO) location.reload();
+    // New day: fresh checklists. Reload for a clean page (and any new version) once nothing is unsaved.
+    if (!outbox.length && !DEMO && $('#admin').hidden) location.reload();
     else { render(); refresh(); }
   }, 15000);
-  setInterval(refresh, REFRESH_MS);
+  setInterval(() => { if ($('#admin').hidden) refresh(); }, REFRESH_MS);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) { refresh(); drain(); keepAwake(); } });
   window.addEventListener('online', () => { drain(); refresh(); });
-
   async function keepAwake() {
     try { if (navigator.wakeLock && !document.hidden) await navigator.wakeLock.request('screen'); } catch { /* fine */ }
   }
@@ -330,53 +551,57 @@
   showStatus();
   if (outbox.length) drain(); else refresh();
 
-  // ---------- Demo (?demo): everything stays in this browser ----------
+  // ---------- Demo (?demo): a pretend server that lives in this browser ----------
   function demoApi() {
     const today = dayKey();
-    const chores = [
-      { id: 'c1', emoji: '👗', name: 'Get dressed', group: 'Morning' },
-      { id: 'c2', emoji: '🪥', name: 'Brush teeth', group: 'Morning' },
-      { id: 'c3', emoji: '🎒', name: 'Backpack and shoes away', group: 'After school' },
-      { id: 'c4', emoji: '🍽️', name: 'Plate to the sink', group: 'After school' },
-    ];
-    const rewards = [
-      { id: 'r1', emoji: '🍭', name: 'Pick a treat', cost: 10 },
-      { id: 'r2', emoji: '🎬', name: 'Pick the Friday movie', cost: 20 },
-      { id: 'r3', emoji: '🎡', name: 'Choose a family outing', cost: 40 },
-    ];
-    const seed = [3, 4, 2, 4, 3, 1].flatMap((n, i) => Array.from({ length: n }, (_, j) => ({ type: 'Chore', stars: 1, date: addDays(today, -(6 - i)), choreId: `c${j + 1}`, key: `chore:c${j + 1}:${addDays(today, -(6 - i))}` })));
-    seed.push({ type: 'Reward', stars: -10, date: addDays(today, -3), name: '🍭 Pick a treat', key: 'r' });
-    const rows = ls.get('stars-demo:rows', seed);
-    const save = () => ls.set('stars-demo:rows', rows);
-    const balance = () => rows.reduce((n, r) => n + r.stars, 0);
+    const T = (id, emoji, name, group, coins = 0) => ({ id, emoji, name, group, coins, active: true });
+    const lists = ls.get('stars-demo:lists', {
+      tasks: [
+        T('m1', '🥣', 'Eat breakfast', 'Morning'), T('m2', '🛏️', 'Make bed', 'Morning'), T('m3', '🪥', 'Brush teeth', 'Morning'),
+        T('m4', '💇‍♀️', 'Brush hair', 'Morning'), T('m5', '👗', 'Get dressed', 'Morning'), T('m6', '🐶', 'Feed dogs', 'Morning', 1),
+        T('m7', '🚗', 'Ready to leave', 'Morning'),
+        T('a1', '📝', 'Pull out homework', 'After school'), T('a2', '👟', 'Put away shoes', 'After school'), T('a3', '🍝', 'Eat dinner', 'After school'),
+        T('a4', '🛁', 'Bath', 'After school'), T('a5', '🪥', 'Brush teeth', 'After school'), T('a6', '🐶', 'Feed dogs', 'After school', 1),
+        T('c1', '🍽️', 'Plate to the sink', 'Money', 1), T('c2', '🧺', 'Clothes in the hamper', 'Money', 1), T('c3', '🍴', 'Set the table', 'Money', 1),
+        T('c4', '🪴', 'Water plants', 'Money', 1), T('c5', '🧦', 'Match socks', 'Money', 1), T('c6', '🧽', 'Wipe the table', 'Money', 1),
+        T('c7', '🧸', 'Toys in bins', 'Money', 1),
+      ],
+      prizes: [
+        { id: 'p1', emoji: '🍬', name: 'Candy pick', cost: 2, active: true }, { id: 'p2', emoji: '📺', name: '15 min screen time', cost: 4, active: true },
+        { id: 'p3', emoji: '🍨', name: 'Dessert pick', cost: 6, active: true }, { id: 'p4', emoji: '🎬', name: 'Movie night pick', cost: 12, active: true },
+        { id: 'p5', emoji: '🎡', name: 'Family outing', cost: 30, active: true },
+      ],
+      store: [
+        { id: 's1', emoji: '⭐', name: 'Stickers', price: 2, jar: 'Spend', active: true }, { id: 's2', emoji: '🎀', name: 'Hair clip', price: 5, jar: 'Spend', active: true },
+        { id: 's3', emoji: '🧸', name: 'Small toy', price: 5, jar: 'Spend', active: true }, { id: 's4', emoji: '🎨', name: 'Craft kit', price: 10, jar: 'Save', goal: true, active: true },
+        { id: 's5', emoji: '📚', name: 'Book or bigger toy', price: 20, jar: 'Save', active: true }, { id: 's6', emoji: '🎁', name: 'Gift for a friend', price: 5, jar: 'Give', active: true },
+        { id: 's7', emoji: '🐾', name: 'Animal shelter gift', price: 5, jar: 'Give', active: true },
+      ],
+    });
+    const base = () => ({
+      today, timezone: tz, name: 'Demo', morningGoal: 'Ready by 7:30',
+      tasks: lists.tasks.filter((x) => x.active), prizes: lists.prizes.filter((x) => x.active), store: lists.store.filter((x) => x.active),
+      stars: 7, coins: { Tray: 2, Spend: 3, Save: 6, Give: 2 }, checks: {}, routines: {},
+      week: [2, 1, 2, 2, 1, 2].map((stars, i) => ({ date: addDays(today, i - 6), stars })),
+      collected: [{ name: '🍬 Candy pick', stars: 2, date: addDays(today, -2) }], toDeliver: [],
+    });
+    let done = ls.get('stars-demo:done', []);
     return {
-      async load() {
-        const checks = {}, week = {};
-        for (const r of rows) {
-          if (r.type === 'Chore') (checks[r.date] ||= []).push(r.choreId);
-          if (r.type !== 'Reward') week[r.date] = (week[r.date] || 0) + r.stars;
-        }
-        return {
-          today, timezone: tz, name: 'Demo', balance: balance(), chores, rewards, checks,
-          week: Object.entries(week).map(([date, stars]) => ({ date, stars })),
-          collected: rows.filter((r) => r.type === 'Reward').slice(-5).reverse().map((r) => ({ name: r.name, stars: -r.stars, date: r.date })),
-        };
-      },
+      async load() { return replay(base(), done, today); },
       async send(op) {
         if (params.has('fail')) throw new SaveError('Demo: pretending the internet is down.', false);
-        const key = op.type.endsWith('check') ? `chore:${op.choreId}:${op.date}` : op.id;
-        if (op.type === 'uncheck') { const i = rows.findIndex((r) => r.key === key); if (i >= 0) rows.splice(i, 1); }
-        else if (!rows.some((r) => r.key === key)) {
-          if (op.type === 'check') rows.push({ type: 'Chore', stars: 1, date: op.date, choreId: op.choreId, key });
-          if (op.type === 'bonus') rows.push({ type: 'Bonus', stars: 1, date: op.date, key });
-          if (op.type === 'remove') rows.push({ type: 'Removed', stars: -1, date: op.date, key });
-          if (op.type === 'collect') {
-            const r = rewards.find((x) => x.id === op.rewardId);
-            if (balance() < r.cost) throw new SaveError(`Not enough stars for ${r.name} yet.`, true);
-            rows.push({ type: 'Reward', stars: -r.cost, date: op.date, name: `${r.emoji} ${r.name}`, key });
-          }
-        }
-        save();
+        if (done.some((d) => d.id === op.id)) return { ok: true };
+        done.push(op); ls.set('stars-demo:done', done);
+        return { ok: true };
+      },
+      async lists() { return JSON.parse(JSON.stringify(lists)); },
+      async saveItem({ list, id, fields }) {
+        if (!fields.name) throw new SaveError('Give it a name first.', true);
+        const clean = { ...fields };
+        for (const k of ['coins', 'order', 'cost', 'price']) if (k in clean) clean[k] = Number(clean[k]) || 0;
+        if (id) Object.assign(lists[list].find((x) => x.id === id), clean);
+        else lists[list].push({ id: uid(), ...clean });
+        ls.set('stars-demo:lists', lists);
         return { ok: true };
       },
     };
