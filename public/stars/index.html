@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <meta name="theme-color" content="#fbf6f8">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="robots" content="noindex">
+  <title>Star Chart</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⭐</text></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="stars.css">
+</head>
+<body>
+  <div id="status" class="status" role="status" aria-live="polite" hidden></div>
+
+  <section id="setup" class="setup" hidden>
+    <div class="setup-card">
+      <div class="big-emoji">⭐</div>
+      <h1>Star Chart</h1>
+      <p id="setup-msg">Open this page with the kiosk link: <code>/stars/?k=YOUR_KIOSK_KEY</code></p>
+      <p><a href="?demo">Peek at a demo</a></p>
+    </div>
+  </section>
+
+  <main id="app" hidden>
+    <header class="top">
+      <div>
+        <p class="eyebrow" id="today-label"></p>
+        <h1 id="title">My stars</h1>
+      </div>
+      <div class="total" aria-label="Star total">
+        <span class="total-star" aria-hidden="true">⭐</span>
+        <strong id="balance">0</strong>
+      </div>
+    </header>
+
+    <div class="layout">
+      <div class="col chores-col">
+        <section class="group" data-group="Morning">
+          <h2><span aria-hidden="true">☀️</span> Morning</h2>
+          <div class="tiles"></div>
+        </section>
+        <section class="group" data-group="After school">
+          <h2><span aria-hidden="true">🏡</span> After school</h2>
+          <div class="tiles"></div>
+        </section>
+      </div>
+
+      <div class="col side-col">
+        <section class="card">
+          <h2><span aria-hidden="true">🎁</span> Rewards</h2>
+          <div id="rewards" class="rewards"></div>
+        </section>
+
+        <section class="card">
+          <h2><span aria-hidden="true">📅</span> My week</h2>
+          <div id="week" class="week"></div>
+        </section>
+
+        <section class="card grownup">
+          <div class="grownup-head">
+            <h3>Grown-ups</h3>
+            <span class="hint">Press and hold</span>
+          </div>
+          <div class="grownup-btns">
+            <button class="hold pill" data-action="bonus" aria-label="Hold to add a bonus star"><span class="hold-fill"></span><span>＋ ⭐</span></button>
+            <button class="hold pill" data-action="remove" aria-label="Hold to remove a star"><span class="hold-fill"></span><span>－ ⭐</span></button>
+          </div>
+          <p class="hint">Hold a ready reward to collect it.</p>
+          <h3 class="collected-head">Last collected</h3>
+          <ul id="collected" class="collected"></ul>
+        </section>
+      </div>
+    </div>
+  </main>
+
+  <div id="cheer" class="cheer" hidden>
+    <div class="cheer-card">
+      <div class="big-emoji" id="cheer-emoji">🎉</div>
+      <p id="cheer-text"></p>
+    </div>
+  </div>
+
+  <script src="stars.js"></script>
+</body>
+</html>

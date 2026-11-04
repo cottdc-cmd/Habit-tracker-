@@ -132,3 +132,49 @@ You can always tap a habit by hand too, even an automatic one.
 - `netlify/functions/`: the API, the daily schedule (`sync-daily`, 10:00 UTC) and the webhooks.
 - `netlify/lib/`: Notion, Oura, Calendar, Apple Health, rules and scoring.
 - `npm test`: tests the rules, scoring, streaks and Apple Health parsing.
+
+---
+
+# ⭐ Star Chart (wall tablet)
+
+A calm chore and star chart for the kids, at `/stars/`. Try it with `/stars/?demo`.
+
+- Big picture tiles in **Morning** and **After school**. Tap to check, tap again to undo. Each one is worth 1 ⭐.
+- The star total, rewards with progress bars, and a 7-day strip are always on screen.
+- It resets itself at local midnight and is fine to leave open for days or weeks.
+- **Grown-ups press and hold for 1 second** to add a bonus star, remove a star, or collect a ready reward. Quick taps do nothing.
+
+## Setup (about 10 minutes, once)
+
+1. In Notion, create a page called **Star Chart** and connect your integration to it (••• → **Connections**).
+2. Put its ID in `.env` as `STARS_PARENT_PAGE_ID`, then run `npm run setup:stars`.
+3. Copy the four values it prints into Netlify's environment variables and redeploy.
+4. On the tablet, open `https://YOUR-SITE.netlify.app/stars/?k=YOUR_KIOSK_KEY` and pin the screen. There's no login.
+
+**Optional: a ping when she's ready for a prize.** Install the free **ntfy** app and subscribe to a hard-to-guess topic name. Set `NTFY_TOPIC` to that name in Netlify. You'll get a push the moment a reward becomes affordable.
+
+Also optional: `STARS_CHILD_NAME` (shown as "June's stars"). For a dark screen, add `&theme=dark` to the link. Otherwise it follows the tablet.
+
+## Your data (all in Notion)
+
+| Database | What it is |
+|---|---|
+| **Chores** | Emoji, Name, Group (`Morning` / `After school`), Order, Active. Edit freely |
+| **Rewards** | Emoji, Name, Cost, Active. Edit freely |
+| **Star Ledger** | Every star ever: chores (+1), bonus (+1), removed (−1), rewards collected (−cost), with the date and the time it was logged |
+
+- **The balance is the sum of the Stars column.** Add a Sum to that column in Notion to check it.
+- You can fix mistakes right in the ledger. Changes show on the tablet within 5 minutes. Edits to rows over 2 weeks old show the next morning.
+- Untapping a chore moves its row to Notion's Trash. Nothing else is ever deleted.
+
+## If saving fails
+
+Every tap is stored on the tablet first, then sent to Notion. If that fails, a yellow message says how many taps are waiting, and it keeps retrying, even after a reload. Taps are never dropped silently. If Notion refuses a tap outright (for example, a reward was collected with too few stars), it says why and undoes it on screen.
+
+## For developers
+
+- `public/stars/`: the tablet page (plain HTML/CSS/JS).
+- `netlify/functions/stars.mjs`: `GET`/`POST /api/stars`, guarded by `KIOSK_KEY`.
+- `netlify/lib/stars/logic.mjs`: balance, week strip and tap rules (pure, tested).
+- `netlify/lib/stars/notion-store.mjs`: the only file that talks to Notion. To move to another database, write a file with the same exports and change the import in `store.mjs`.
+- Every write has a unique `Key`, so retries never double-count.
