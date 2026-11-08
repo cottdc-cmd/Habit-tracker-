@@ -31,9 +31,10 @@
         <p class="eyebrow" id="today-label"></p>
         <h1 id="title">My stars</h1>
       </div>
+      <nav id="kids" class="kids" aria-label="Whose chart" hidden></nav>
       <div class="totals">
         <div class="total" aria-label="Stars"><span aria-hidden="true">⭐</span><strong id="stars">0</strong></div>
-        <div class="total coins" aria-label="Coins"><span aria-hidden="true">🪙</span><strong id="coins">0</strong></div>
+        <div class="total coins coin-only" aria-label="Coins"><span aria-hidden="true">🪙</span><strong id="coins">0</strong></div>
       </div>
     </header>
 
@@ -58,7 +59,7 @@
           <button class="hold pill small delay" data-action="delay" data-group="After school"><span class="hold-fill"></span><span>🙋 Grown-ups were the delay</span></button>
         </section>
 
-        <section class="card money" data-group="Money">
+        <section class="card money coin-only" data-group="Money">
           <div class="card-head">
             <h2><span aria-hidden="true">🪙</span> Money chores</h2>
             <span class="chip">1 job = 1 coin</span>
@@ -75,7 +76,7 @@
           <div id="week" class="week"></div>
         </section>
 
-        <section class="card">
+        <section class="card coin-only">
           <div class="card-head">
             <h2><span aria-hidden="true">🫙</span> My coins</h2>
           </div>
@@ -87,14 +88,14 @@
           </div>
         </section>
 
-        <section class="card">
+        <section class="card" id="prizes-card">
           <div class="card-head">
             <h2><span aria-hidden="true">🏆</span> Star prizes</h2>
           </div>
           <div id="prizes" class="list"></div>
         </section>
 
-        <section class="card">
+        <section class="card coin-only">
           <div class="card-head">
             <h2><span aria-hidden="true">🛍️</span> Coin store</h2>
           </div>
@@ -106,10 +107,12 @@
             <h3>Grown-ups</h3>
             <span class="hint">Press and hold</span>
           </div>
+          <h3 class="sub first">✨ Extra effort</h3>
+          <div id="extras" class="extras"></div>
           <div class="grownup-btns">
             <button class="hold pill" data-action="bonus"><span class="hold-fill"></span><span>＋ ⭐ Bonus</span></button>
             <button class="hold pill" data-action="removeStar"><span class="hold-fill"></span><span>－ ⭐</span></button>
-            <button class="hold pill" data-action="removeCoin"><span class="hold-fill"></span><span>－ 🪙</span></button>
+            <button class="hold pill coin-only" data-action="removeCoin"><span class="hold-fill"></span><span>－ 🪙</span></button>
           </div>
           <p class="hint">Hold a ready prize or store item to give it.</p>
           <h3 class="sub">To deliver</h3>
@@ -125,7 +128,7 @@
   <section id="admin" class="admin" hidden>
     <div class="admin-panel">
       <div class="admin-head">
-        <h2>⚙️ Edit lists</h2>
+        <h2 id="admin-title">⚙️ Edit lists</h2>
         <button class="pill small" data-admin-close>Done</button>
       </div>
       <div class="tabs">

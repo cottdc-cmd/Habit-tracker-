@@ -141,6 +141,8 @@ A calm routine, star and coin chart for the kids, at `/stars/`. Try it with `/st
 
 **Two currencies.** Stars buy treats and experiences. Pretend coins teach money.
 
+**One chart per kid.** Big name tabs at the top switch between them (Bianca 🌸, Aria 🐣). Each kid has her own lists and balances. A kid marked **Simple** (Aria) sees only her checklists, star count and week: no coins, store or money chores.
+
 - **Routines (stars).** Morning and After school checklists. Finishing every item earns 1 ⭐ for that routine, so 2 a day at most. "Ready by 7:30" is just a family goal and never blocks the star.
 - **Money chores (coins).** Each one earns 1 🪙. Items like 🐶 Feed dogs sit in a routine *and* earn a coin with one tap.
 - **Coin tray and jars.** New coins wait in the tray. She taps 🛍️ Spend, 🐷 Save or 💝 Give to drop each one in.
@@ -153,6 +155,7 @@ A calm routine, star and coin chart for the kids, at `/stars/`. Try it with `/st
 | Hold | What it does |
 |---|---|
 | 🙋 Grown-ups were the delay (1 s) | Gives that routine's star even if items are unchecked |
+| ✨ An Extra effort reason (1 s) | Awards its stars, e.g. 📚 School pages on her own = +2 ⭐. Add your own in Edit lists, group `Extra` |
 | ＋ ⭐ Bonus / － ⭐ / － 🪙 (1 s) | Extra effort, or undo a star or coin (the tray first, then Spend, Save, Give) |
 | A ready prize or store item (1 s) | Collects it, deducts the cost, and adds it to **To deliver** |
 | ✓ Delivered (1 s) | Marks it handed over |
@@ -162,13 +165,13 @@ Quick taps on these do nothing, so a 5-year-old can't trigger them by accident.
 
 ## Edit the lists
 
-Hold **⚙️ Edit lists** at the bottom of the tablet for 2 seconds. You can rename, re-price, add, or hide (untick Active) anything:
+Pick the kid's tab, then hold **⚙️ Edit lists** at the bottom of the tablet for 2 seconds. It edits that kid's lists. You can rename, re-price, add, or hide (untick Active) anything:
 
-- **Routines & chores.** Group is `Morning`, `After school` or `Money`. Coins is what it earns (0 for routine-only items).
+- **Routines & chores.** Group is `Morning`, `After school`, `Money` or `Extra`. Coins is what it earns (0 for routine-only items). For `Extra`, Stars is how many a grown-up's hold awards.
 - **Star prizes.** Name, emoji and star cost.
 - **Coin store.** Name, emoji, coin price and jar (`Spend`, `Save` or `Give`).
 
-The same lists are Notion databases on the **Star Chart** page, so you can also edit them there.
+The same lists are Notion databases on the **Star Chart** page, so you can also edit them there. Each row has a **Kid**. Rows with no Kid belong to the first kid in **Kids**. Add or rename kids, or tick **Simple**, in the **Kids** database.
 
 ## Your data (all in Notion → Star Chart)
 
@@ -178,7 +181,7 @@ The same lists are Notion databases on the **Star Chart** page, so you can also 
 |---|---|---|
 | Check (an item ticked) | 0 | the chore's coins, with **Jar** = where the coin is now |
 | Routine (all done, or grown-ups were the delay) | +1 | |
-| Bonus / Removed | ±1 | or −1 coin |
+| Bonus (plain or Extra effort) / Removed | +N / −1 | or −1 coin |
 | Prize | −cost | Status: To deliver → Delivered |
 | Purchase | | −price from its jar. Status: To deliver → Delivered |
 
@@ -202,7 +205,7 @@ Every tap is stored on the tablet first, then sent to Notion. If that fails, a y
 2. Put its ID in `.env` as `STARS_PARENT_PAGE_ID`, then run `npm run setup:stars`.
 3. Copy the values it prints into Netlify's environment variables and redeploy.
 
-Optional settings: `STARS_CHILD_NAME` ("June's stars"), `STARS_MORNING_GOAL` (default "Ready by 7:30"), and `NTFY_TOPIC` (a free push to your phone via the ntfy app when a star prize becomes affordable). Add `&theme=dark` to the link to force dark mode. Otherwise it follows the tablet.
+Kids come from the **Kids** database (`STARS_KIDS_DB`). Optional settings: `STARS_MORNING_GOAL` (default "Ready by 7:30"), and `NTFY_TOPIC` (a free push to your phone via the ntfy app when a star prize becomes affordable). Add `&theme=dark` to the link to force dark mode. Otherwise it follows the tablet.
 
 ## Run it locally
 

@@ -101,3 +101,19 @@ test('notifies only when a prize first becomes affordable', () => {
   assert.deepEqual(newlyReady(prizes, 2, 3), []);
   assert.deepEqual(newlyReady(prizes, 3, 2), []);
 });
+
+test('routine keys carry the kid, and the routine can be read back from any key', async () => {
+  const { groupFromKey } = await import('../netlify/lib/stars/logic.mjs');
+  assert.equal(routineKey('Morning', today, 'ab-12'), `routine:morning:${today}:ab12`);
+  assert.equal(groupFromKey(routineKey('After school', today, 'k2')), 'After school');
+  assert.equal(groupFromKey(`routine:morning:${today}`), 'Morning', 'keys from before kids still work');
+  assert.equal(groupFromKey('bonus:x'), null);
+});
+
+test('extra effort items are awarded, not checked off', () => {
+  const extra = { id: 'e1', emoji: '📚', name: 'School pages on her own', group: 'Extra', stars: 2 };
+  const c = { ...ctx, tasks: [...tasks, extra] };
+  assert.equal(validateOp({ type: 'extra', id: 'x', taskId: 'e1', date: today }, c).task.stars, 2);
+  assert.throws(() => validateOp({ type: 'check', taskId: 'e1', date: today }, c), /no longer exists/);
+  assert.throws(() => validateOp({ type: 'extra', id: 'x', taskId: 'm1', date: today }, c), /extra-effort/);
+});

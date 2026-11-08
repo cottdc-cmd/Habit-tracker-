@@ -72,6 +72,26 @@ main { padding: max(18px, env(safe-area-inset-top)) 20px 28px; max-width: 1500px
 .routine[data-group="Morning"] .chip { background: var(--pink); }
 .money .chip { background: var(--gold); }
 
+/* Kid tabs */
+.kids { display: flex; gap: 10px; margin-left: auto; }
+.kid-tab {
+  border: 3px solid var(--line); background: var(--card); border-radius: 999px;
+  padding: 10px 22px; font-size: 22px; box-shadow: var(--shadow);
+}
+.kid-tab.on { border-color: var(--pink-deep); background: var(--pink); }
+
+/* Simple view for little ones: checklists and stars only */
+.simple .coin-only { display: none !important; }
+.simple .tiles { grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 18px; }
+.simple .tile { min-height: 200px; }
+.simple .tile .emoji { font-size: 84px; }
+.simple .tile .label { font-size: 24px; }
+
+/* Extra effort (grown-ups award these) */
+.extras { display: grid; gap: 8px; margin-bottom: 12px; }
+.extras .pill { text-align: left; display: block; width: 100%; }
+.sub.first { margin: 0 0 8px; }
+
 /* Routine star slot */
 .routine-star {
   display: flex; align-items: center; gap: 12px;

@@ -4,11 +4,12 @@
 //   Check     a routine item or money chore checked off today. Coins = the chore's coin value,
 //             landing in Jar "Tray" until she places it in Spend, Save or Give.
 //   Routine   +1 star: a whole checklist done, or "Grown-ups were the delay"
-//   Bonus     +1 star from a grown-up
+//   Bonus     +N stars from a grown-up (plain bonus, or an Extra effort item worth N)
 //   Removed   -1 star or -1 coin from a grown-up
 //   Prize     -N stars for a star prize (Status: To deliver / Delivered)
 //   Purchase  -N coins from a jar for a store item (Status: To deliver / Delivered)
 // Star balance = sum of Stars. Each jar's balance = sum of Coins in that jar.
+// Every row belongs to one kid. Rows (and list items) without a kid belong to the first kid.
 
 import { addDays } from '../dates.mjs';
 
@@ -19,7 +20,13 @@ export const DONE_NOTE = 'All done';
 
 const bare = (id) => String(id || '').replace(/-/g, '');
 export const checkKey = (taskId, date) => `check:${bare(taskId)}:${date}`;
-export const routineKey = (group, date) => `routine:${group.toLowerCase().replace(/\s+/g, '-')}:${date}`;
+const slug = (g) => g.toLowerCase().replace(/\s+/g, '-');
+export const routineKey = (group, date, kidId = '') => `routine:${slug(group)}:${date}${kidId ? `:${bare(kidId)}` : ''}`;
+// Which routine a Routine row is for, read from its key.
+export function groupFromKey(key) {
+  const m = /^routine:([a-z-]+):/.exec(key || '');
+  return m ? ROUTINES.find((g) => slug(g) === m[1]) || null : null;
+}
 
 const n = (v) => Number(v) || 0;
 const isCheck = (r) => r.type === 'Check' || r.type === 'Chore'; // "Chore" = rows from the first version
@@ -121,6 +128,7 @@ export function userError(message) {
 }
 
 // Checks a tap's shape and returns the item it refers to.
+// `tasks`, `prizes` and `store` are already narrowed to the tapping kid's own items.
 export function validateOp(op, { tasks, prizes, store, today }) {
   const { type, id, date } = op || {};
   if (!validDate(date, today)) throw userError(`That tap has an odd date (${date}).`);
@@ -129,8 +137,13 @@ export function validateOp(op, { tasks, prizes, store, today }) {
   switch (type) {
     case 'check':
     case 'uncheck': {
-      const task = tasks.find((t) => t.id === op.taskId);
+      const task = tasks.find((t) => t.id === op.taskId && t.group !== 'Extra');
       if (!task) throw userError('That chore no longer exists. It may have been removed in the admin screen.');
+      return { task };
+    }
+    case 'extra': {
+      const task = tasks.find((t) => t.id === op.taskId && t.group === 'Extra');
+      if (!task) throw userError('That extra-effort item no longer exists.');
       return { task };
     }
     case 'delay':

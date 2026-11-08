@@ -3,24 +3,26 @@
 // To move to another database, write a file with these same exports
 // and change the one import in ./store.mjs. Nothing else needs to know.
 //
-//   getTasks(all)            routine items + money chores (all = include inactive)
+//   getKids()                active kids, in order (one implied kid if STARS_KIDS_DB isn't set)
+//   getTasks(all)            routine items, money chores, extra effort (all = include inactive)
 //   getPrizes(all)           star prizes, cheapest first
 //   getStore(all)            coin store items
 //   getRows(since)           ledger rows dated on/after `since`
-//   totalsBefore(date)       { stars, coins: { Tray, Spend, Save, Give } } of rows before `date`
+//   totalsBefore(date)       { [kidId or '']: { stars, coins: { Tray, Spend, Save, Give } } } of rows before `date`
 //   findByKey(key)           one ledger row, or null
 //   findPlaced(opId)         the row a "place coin" tap already moved, or null
-//   trayCoin()               one row with a coin still waiting in the tray, or null
+//   trayCoins()              rows with a coin still waiting in a tray (any kid)
 //   addRow(row)              write one ledger row
 //   updateRow(id, fields)    change jar / placed / status on a row
 //   removeByKey(key)         remove ledger rows (Notion keeps them in Trash)
+//   removeRow(id)            remove one ledger row
 //   lastCollected(n)         the n most recent star prizes
 //   toDeliver()              prizes and purchases not yet delivered
 //   saveListItem(list, id, fields)   admin: create or update a task / prize / store item
 //   setGoal(itemId)          make one Save item the goal
 
 import { notion, queryAll, createPage, updatePage, archivePage, P, R } from '../notion.mjs';
-import { ROUTINES, routineKey } from './logic.mjs';
+import { groupFromKey } from './logic.mjs';
 
 const env = (name) => {
   const v = process.env[name];
@@ -28,6 +30,7 @@ const env = (name) => {
   return v;
 };
 const db = {
+  kids: () => process.env.STARS_KIDS_DB || null,
   tasks: () => env('STARS_CHORES_DB'),
   prizes: () => env('STARS_REWARDS_DB'),
   store: () => env('STARS_STORE_DB'),
@@ -35,6 +38,18 @@ const db = {
 };
 const bare = (id) => String(id || '').replace(/-/g, '');
 const activeOnly = (all) => (all ? {} : { filter: { property: 'Active', checkbox: { equals: true } } });
+const kidOf = (p) => bare(R.relation(p.properties.Kid)) || null;
+
+export async function getKids() {
+  if (!db.kids()) return [{ id: 'default', name: process.env.STARS_CHILD_NAME || '', emoji: '⭐', simple: false }];
+  const pages = await queryAll(db.kids(), { ...activeOnly(false), sorts: [{ property: 'Order', direction: 'ascending' }] });
+  return pages.map((p) => ({
+    id: bare(p.id),
+    name: R.title(p.properties.Name),
+    emoji: R.text(p.properties.Emoji) || '⭐',
+    simple: R.checkbox(p.properties.Simple),
+  })).filter((k) => k.name);
+}
 
 export async function getTasks(all = false) {
   const pages = await queryAll(db.tasks(), { ...activeOnly(all), sorts: [{ property: 'Order', direction: 'ascending' }] });
@@ -45,7 +60,9 @@ export async function getTasks(all = false) {
     group: R.select(p.properties.Group) || 'Morning',
     order: R.number(p.properties.Order) ?? 0,
     coins: Math.max(0, R.number(p.properties.Coins) ?? 0),
+    stars: Math.max(0, R.number(p.properties.Stars) ?? 1),
     active: R.checkbox(p.properties.Active),
+    kidId: kidOf(p),
   })).filter((t) => t.name);
 }
 
@@ -57,6 +74,7 @@ export async function getPrizes(all = false) {
     emoji: R.text(p.properties.Emoji) || '🎁',
     cost: Math.max(1, R.number(p.properties.Cost) ?? 1),
     active: R.checkbox(p.properties.Active),
+    kidId: kidOf(p),
   })).filter((r) => r.name);
 }
 
@@ -70,6 +88,7 @@ export async function getStore(all = false) {
     jar: R.select(p.properties.Jar) || 'Spend',
     goal: R.checkbox(p.properties.Goal),
     active: R.checkbox(p.properties.Active),
+    kidId: kidOf(p),
   })).filter((s) => s.name);
 }
 
@@ -92,7 +111,8 @@ function toRow(p) {
     note: R.text(pr.Note),
     placed: R.text(pr.Placed),
     name: R.title(pr.Name),
-    group: ROUTINES.find((g) => key === routineKey(g, date)) || null,
+    group: groupFromKey(key),
+    kidId: kidOf(p),
   };
 }
 
@@ -107,20 +127,21 @@ export async function getRows(since) {
 }
 
 export async function totalsBefore(date) {
-  const t = { stars: 0, coins: { Tray: 0, Spend: 0, Save: 0, Give: 0 } };
+  const out = {};
   for (const p of await query({ property: 'Date', date: { before: date } })) {
     const r = toRow(p);
+    const t = (out[r.kidId || ''] ||= { stars: 0, coins: { Tray: 0, Spend: 0, Save: 0, Give: 0 } });
     t.stars += Number(r.stars) || 0;
     if (r.jar && r.jar in t.coins) t.coins[r.jar] += Number(r.coins) || 0;
   }
-  return t;
+  return out;
 }
 
 export const findByKey = (key) => queryOne({ property: 'Key', rich_text: { equals: key } });
 export const findPlaced = (opId) => queryOne({ property: 'Placed', rich_text: { equals: opId } });
-export const trayCoin = () => queryOne({
+export const trayCoins = async () => (await query({
   and: [{ property: 'Jar', select: { equals: 'Tray' } }, { property: 'Coins', number: { greater_than: 0 } }],
-});
+})).map(toRow);
 
 export async function addRow(row) {
   await createPage(db.ledger(), {
@@ -136,6 +157,7 @@ export async function addRow(row) {
     ...(row.taskId ? { Chore: P.relation(row.taskId) } : {}),
     ...(row.prizeId ? { Reward: P.relation(row.prizeId) } : {}),
     ...(row.itemId ? { Item: P.relation(row.itemId) } : {}),
+    ...(row.kidId && row.kidId !== 'default' ? { Kid: P.relation(row.kidId) } : {}),
   });
 }
 
@@ -153,18 +175,20 @@ export async function removeByKey(key) {
   return rows.length > 0;
 }
 
+export const removeRow = (id) => archivePage(id);
+
 export async function lastCollected(n = 5) {
   const res = await notion(`/databases/${db.ledger()}/query`, 'POST', {
     filter: { or: [{ property: 'Type', select: { equals: 'Prize' } }, { property: 'Type', select: { equals: 'Reward' } }] },
     sorts: [{ property: 'Date', direction: 'descending' }, { timestamp: 'created_time', direction: 'descending' }],
     page_size: n,
   });
-  return res.results.map(toRow).map((r) => ({ name: r.name, stars: -r.stars, date: r.date }));
+  return res.results.map(toRow).map((r) => ({ name: r.name, stars: -r.stars, date: r.date, kidId: r.kidId }));
 }
 
 export async function toDeliver() {
   const rows = await query({ property: 'Status', select: { equals: 'To deliver' } }, { sorts: [{ property: 'Date', direction: 'ascending' }] });
-  return rows.map(toRow).map((r) => ({ rowId: r.id, name: r.name, date: r.date, type: r.type, jar: r.jar }));
+  return rows.map(toRow).map((r) => ({ rowId: r.id, name: r.name, date: r.date, type: r.type, jar: r.jar, kidId: r.kidId }));
 }
 
 // ---------- Admin edits ----------
@@ -178,6 +202,7 @@ const LISTS = {
       ...('group' in f ? { Group: P.select(f.group) } : {}),
       ...('order' in f ? { Order: P.number(Number(f.order) || 0) } : {}),
       ...('coins' in f ? { Coins: P.number(Math.max(0, Number(f.coins) || 0)) } : {}),
+      ...('stars' in f ? { Stars: P.number(Math.max(0, Number(f.stars) || 0)) } : {}),
       ...('active' in f ? { Active: P.checkbox(f.active) } : {}),
     }),
   },
@@ -206,12 +231,13 @@ export async function saveListItem(list, id, fields) {
   const l = LISTS[list];
   if (!l) throw new Error(`Unknown list ${list}`);
   const props = l.props(fields);
+  if (fields.kidId && fields.kidId !== 'default') props.Kid = P.relation(fields.kidId);
   if (id) await updatePage(id, props);
   else await createPage(l.db(), { Active: P.checkbox(true), ...props });
 }
 
-export async function setGoal(itemId) {
-  const items = await getStore(true);
+export async function setGoal(itemId, sameKid = () => true) {
+  const items = (await getStore(true)).filter(sameKid);
   for (const s of items) {
     const want = s.id === itemId;
     if (s.goal !== want && (want || s.jar === 'Save' || s.goal)) await updatePage(s.id, { Goal: P.checkbox(want) });

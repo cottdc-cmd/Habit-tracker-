@@ -75,7 +75,12 @@
 
   // ---------- State ----------
   let server = ls.get(NS + 'last', null); // last good state from the server
+  if (server && !server.byKid) server = null; // saved by an older version
   let outbox = ls.get(NS + 'outbox', []);
+  let kidId = ls.get('stars:kid', null);
+  const kids = () => server?.kids || [];
+  const currentKid = () => kids().find((k) => k.id === kidId) || kids()[0] || { id: 'default', name: '' };
+  const opKid = (o) => o.kidId || kids()[0]?.id;
   const saveOutbox = () => ls.set(NS + 'outbox', outbox);
 
   // Replays taps on top of a server-shaped state. Mirrors the server's rules.
@@ -117,6 +122,7 @@
           break;
         case 'delay': touch(op.group, true); break;
         case 'bonus': stars++; day(op.date, 1); break;
+        case 'extra': { const n = t ? t.stars ?? 1 : 1; stars += n; day(op.date, n); break; }
         case 'removeStar': stars--; day(op.date, -1); break;
         case 'removeCoin': takeCoin(1); break;
         case 'place': if (coins.Tray > 0) { coins.Tray--; coins[op.jar]++; } break;
@@ -166,16 +172,24 @@
 
   function view() {
     const today = dayKey();
-    const v = replay(server, outbox, today);
-    return { ...v, today, done: new Set(v.checks[today] || []), routineToday: v.routines[today] || {} };
+    const kid = currentKid();
+    const base = { ...(server.byKid?.[kid.id] || {}), morningGoal: server.morningGoal };
+    const v = replay(base, outbox.filter((o) => opKid(o) === kid.id), today);
+    return { ...v, kid, today, done: new Set(v.checks[today] || []), routineToday: v.routines[today] || {} };
   }
 
   // ---------- Rendering ----------
   let last = { stars: null, coins: null, Morning: undefined, 'After school': undefined };
+  let lastKid = null;
   function render() {
     if (!server) return;
     const v = view();
-    $('#title').textContent = v.name ? `${v.name}'s stars` : 'My stars';
+    const ks = kids();
+    $('#title').textContent = v.kid.name ? `${v.kid.name}'s stars` : 'My stars';
+    document.body.classList.toggle('simple', !!v.kid.simple);
+    $('#kids').hidden = ks.length < 2;
+    $('#kids').innerHTML = ks.map((k) => `<button class="kid-tab${k.id === v.kid.id ? ' on' : ''}" data-kid="${esc(k.id)}" aria-pressed="${k.id === v.kid.id}">${esc(k.emoji)} ${esc(k.name)}</button>`).join('');
+    if (lastKid !== v.kid.id) { last = { stars: null, coins: null, Morning: undefined, 'After school': undefined }; lastKid = v.kid.id; }
     $('#today-label').textContent = fmt(v.today, { weekday: 'long', month: 'long', day: 'numeric' });
     $('#morning-goal').textContent = `⏰ ${v.morningGoal || 'Ready by 7:30'}`;
     const coinTotal = v.coins.Tray + v.coins.Spend + v.coins.Save + v.coins.Give;
@@ -188,6 +202,7 @@
     for (const section of $$('[data-group]', $('#app')).filter((el) => el.matches('section'))) {
       const group = section.dataset.group;
       const items = v.tasks.filter((t) => t.group === group);
+      section.hidden = !items.length && group !== 'Money';
       $('.tiles', section).innerHTML = items.map((t) => {
         const done = v.done.has(t.id);
         return `<button class="tile${done ? ' done' : ''}" data-task="${esc(t.id)}" aria-pressed="${done}">
@@ -240,6 +255,12 @@
       action: 'collect', idAttr: `data-prize="${esc(p.id)}"`, emoji: p.emoji, name: p.name,
       have: v.stars, cost: p.cost, unit: '⭐', readyText: 'Ready! 🎉',
     })).join('') || '<p class="empty">Add star prizes in ⚙️ Edit lists.</p>';
+    $('#prizes-card').hidden = !!v.kid.simple && !v.prizes.length;
+
+    const extras = v.tasks.filter((t) => t.group === 'Extra');
+    $('#extras').innerHTML = extras.map((t) => `<button class="hold pill small" data-action="extra" data-task="${esc(t.id)}">
+        <span class="hold-fill"></span><span>${esc(t.emoji)} ${esc(t.name)} · +${t.stars ?? 1} ⭐</span></button>`).join('')
+      || '<p class="empty">Add reasons in ⚙️ Edit lists (group: Extra).</p>';
 
     // Coin store
     const byJar = (j) => v.store.filter((x) => x.jar === j);
@@ -306,7 +327,7 @@
   // ---------- Outbox ----------
   let draining = false, retryTimer = null, retryDelay = 5000;
   function enqueue(op) {
-    outbox.push({ id: uid(), date: dayKey(), at: new Date().toISOString(), ...op });
+    outbox.push({ id: uid(), date: dayKey(), at: new Date().toISOString(), kidId: currentKid().id, ...op });
     saveOutbox();
     render();
     drain();
@@ -372,6 +393,8 @@
   // ---------- Kid taps ----------
   document.addEventListener('click', (e) => {
     if (!$('#admin').hidden) return;
+    const tab = e.target.closest('.kid-tab');
+    if (tab) { kidId = tab.dataset.kid; ls.set('stars:kid', kidId); render(); window.scrollTo(0, 0); return; }
     const tile = e.target.closest('.tile');
     if (tile) {
       const done = view().done.has(tile.dataset.task);
@@ -415,6 +438,12 @@
     const a = el.dataset.action;
     if (navigator.vibrate) navigator.vibrate(40);
     if (a === 'bonus') enqueue({ type: 'bonus' });
+    else if (a === 'extra') {
+      const t = v.tasks.find((x) => x.id === el.dataset.task);
+      if (!t) return;
+      enqueue({ type: 'extra', taskId: t.id });
+      cheer(t.emoji, `${t.name}! +${t.stars ?? 1} ⭐`);
+    }
     else if (a === 'removeStar') { if (v.stars < 1) return nope(el); enqueue({ type: 'removeStar' }); }
     else if (a === 'removeCoin') {
       const total = v.coins.Tray + v.coins.Spend + v.coins.Save + v.coins.Give;
@@ -465,7 +494,7 @@
   // ---------- Admin screen (grown-ups only: hold ⚙️ for 2 seconds) ----------
   let lists = null, tab = 'tasks';
   const COLS = {
-    tasks: { hint: 'Morning and After school items make up the checklists. Money chores earn coins. "Coins" on a routine item (like Feed dogs) makes it earn a coin too. Untick Active to hide.' },
+    tasks: { hint: 'Morning and After school make the checklists. Money chores earn coins ("Coins" on a routine item, like Feed dogs, earns a coin too). Extra = reasons grown-ups hold to award stars ("Stars" is how many). Untick Active to hide. To switch kids, close this and tap their name.' },
     prizes: { hint: 'Star prizes, cheapest first. Untick Active to hide.' },
     store: { hint: 'Each item belongs to one jar: Spend (store), Save (goals), Give (gifts). Untick Active to hide.' },
   };
@@ -476,15 +505,17 @@
   }
   function renderAdmin() {
     for (const b of $$('.tab')) b.classList.toggle('on', b.dataset.tab === tab);
+    const kid = currentKid();
+    $('#admin-title').textContent = `⚙️ Edit ${kid.name ? `${kid.name}'s` : ''} lists`;
     $('#admin-hint').textContent = COLS[tab].hint;
-    $('#admin-body').innerHTML = lists[tab].map(adminRow).join('');
+    $('#admin-body').innerHTML = lists[tab].filter((x) => (x.kidId || kids()[0]?.id) === kid.id).map(adminRow).join('');
   }
   function adminRow(x) {
     const id = x.id || '';
     const num = (f, v, label) => `<label>${label}<input class="f-num" type="number" inputmode="numeric" data-f="${f}" value="${esc(v ?? '')}"></label>`;
     const sel = (f, v, opts) => `<select data-f="${f}">${opts.map((o) => `<option${o === v ? ' selected' : ''}>${o}</option>`).join('')}</select>`;
     let extra = '';
-    if (tab === 'tasks') extra = sel('group', x.group || 'Morning', ['Morning', 'After school', 'Money']) + num('coins', x.coins ?? 0, 'Coins') + num('order', x.order ?? 99, 'Order');
+    if (tab === 'tasks') extra = sel('group', x.group || 'Morning', ['Morning', 'After school', 'Money', 'Extra']) + num('coins', x.coins ?? 0, 'Coins') + num('stars', x.stars ?? 1, 'Stars') + num('order', x.order ?? 99, 'Order');
     if (tab === 'prizes') extra = num('cost', x.cost ?? 5, 'Stars');
     if (tab === 'store') extra = sel('jar', x.jar || 'Spend', JARS) + num('price', x.price ?? 5, 'Coins');
     return `<div class="arow${x.active === false ? ' off' : ''}" data-id="${esc(id)}">
@@ -512,6 +543,7 @@
     const msg = $('.msg', row);
     const fields = {};
     for (const inp of $$('[data-f]', row)) fields[inp.dataset.f] = inp.type === 'checkbox' ? inp.checked : inp.value.trim();
+    if (!row.dataset.id) fields.kidId = currentKid().id;
     msg.className = 'msg'; msg.textContent = 'Saving…';
     save.disabled = true;
     try {
@@ -578,16 +610,37 @@
         { id: 's7', emoji: '🐾', name: 'Animal shelter gift', price: 5, jar: 'Give', active: true },
       ],
     });
+    const KIDS = [{ id: 'k1', name: 'Bianca', emoji: '🌸', simple: false }, { id: 'k2', name: 'Aria', emoji: '🐣', simple: true }];
+    for (const x of [...lists.tasks, ...lists.prizes, ...lists.store]) x.kidId ||= 'k1';
+    if (!lists.tasks.some((x) => x.kidId === 'k2')) {
+      lists.tasks.push(T('t1', '🥣', 'Eat', 'Morning'), T('t2', '🪥', 'Brush teeth', 'Morning'), T('t3', '👕', 'Get dressed', 'Morning'));
+      for (const x of lists.tasks.slice(-3)) x.kidId = 'k2';
+      lists.tasks.push({ ...T('e1', '📚', 'School pages on her own', 'Extra'), stars: 2, kidId: 'k1' }, { ...T('e2', '🤝', 'Helped pick up', 'Extra'), stars: 1, kidId: 'k1' });
+    }
+    const of = (arr, k) => arr.filter((x) => x.active && x.kidId === k);
     const base = () => ({
-      today, timezone: tz, name: 'Demo', morningGoal: 'Ready by 7:30',
-      tasks: lists.tasks.filter((x) => x.active), prizes: lists.prizes.filter((x) => x.active), store: lists.store.filter((x) => x.active),
-      stars: 7, coins: { Tray: 2, Spend: 3, Save: 6, Give: 2 }, checks: {}, routines: {},
-      week: [2, 1, 2, 2, 1, 2].map((stars, i) => ({ date: addDays(today, i - 6), stars })),
-      collected: [{ name: '🍬 Candy pick', stars: 2, date: addDays(today, -2) }], toDeliver: [],
+      today, timezone: tz, morningGoal: 'Ready by 7:30', kids: KIDS,
+      byKid: {
+        k1: {
+          tasks: of(lists.tasks, 'k1'), prizes: of(lists.prizes, 'k1'), store: of(lists.store, 'k1'),
+          stars: 7, coins: { Tray: 2, Spend: 3, Save: 6, Give: 2 }, checks: {}, routines: {},
+          week: [2, 1, 2, 2, 1, 2].map((stars, i) => ({ date: addDays(today, i - 6), stars })),
+          collected: [{ name: '🍬 Candy pick', stars: 2, date: addDays(today, -2) }], toDeliver: [],
+        },
+        k2: {
+          tasks: of(lists.tasks, 'k2'), prizes: of(lists.prizes, 'k2'), store: [],
+          stars: 3, coins: { Tray: 0, Spend: 0, Save: 0, Give: 0 }, checks: {}, routines: {},
+          week: [1, 1, 0, 1, 0, 0].map((stars, i) => ({ date: addDays(today, i - 6), stars })), collected: [], toDeliver: [],
+        },
+      },
     });
     let done = ls.get('stars-demo:done', []);
     return {
-      async load() { return replay(base(), done, today); },
+      async load() {
+        const st = base();
+        for (const k of KIDS) st.byKid[k.id] = replay(st.byKid[k.id], done.filter((o) => (o.kidId || 'k1') === k.id), today);
+        return st;
+      },
       async send(op) {
         if (params.has('fail')) throw new SaveError('Demo: pretending the internet is down.', false);
         if (done.some((d) => d.id === op.id)) return { ok: true };
@@ -600,7 +653,7 @@
         const clean = { ...fields };
         for (const k of ['coins', 'order', 'cost', 'price']) if (k in clean) clean[k] = Number(clean[k]) || 0;
         if (id) Object.assign(lists[list].find((x) => x.id === id), clean);
-        else lists[list].push({ id: uid(), ...clean });
+        else lists[list].push({ id: uid(), active: true, ...clean });
         ls.set('stars-demo:lists', lists);
         return { ok: true };
       },
